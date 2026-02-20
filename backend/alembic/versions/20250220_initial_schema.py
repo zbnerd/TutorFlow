@@ -125,8 +125,89 @@ def upgrade() -> None:
     )
     op.create_index("ix_available_slots_tutor_id", "available_slots", ["tutor_id"])
 
+    # Create bookings table
+    op.create_table(
+        "bookings",
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("gen_random_uuid()"),
+        ),
+        sa.Column(
+            "student_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "tutor_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column("total_sessions", sa.Integer(), nullable=False),
+        sa.Column("completed_sessions", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("status", sa.String(20), nullable=False, server_default="PENDING"),
+        sa.Column("notes", sa.Text()),
+        sa.Column(
+            "created_at",
+            sa.DateTime(),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+            nullable=False,
+        ),
+    )
+    op.create_index("ix_bookings_student_id", "bookings", ["student_id"])
+    op.create_index("ix_bookings_tutor_id", "bookings", ["tutor_id"])
+
+    # Create booking_sessions table
+    op.create_table(
+        "booking_sessions",
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("gen_random_uuid()"),
+        ),
+        sa.Column(
+            "booking_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("bookings.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column("session_date", sa.DateTime(), nullable=False),
+        sa.Column("session_time", sa.String(5), nullable=False),
+        sa.Column("status", sa.String(20), nullable=False, server_default="SCHEDULED"),
+        sa.Column("attendance_checked_at", sa.DateTime()),
+        sa.Column(
+            "attendance_checked_by",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="SET NULL"),
+        ),
+        sa.Column("notes", sa.Text()),
+        sa.Column(
+            "created_at",
+            sa.DateTime(),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+            nullable=False,
+        ),
+        sa.UniqueConstraint("booking_id", "session_date", "session_time"),
+    )
+    op.create_index("ix_booking_sessions_booking_id", "booking_sessions", ["booking_id"])
+
 
 def downgrade() -> None:
+    op.drop_index("ix_booking_sessions_booking_id", table_name="booking_sessions")
+    op.drop_table("booking_sessions")
+    op.drop_index("ix_bookings_tutor_id", table_name="bookings")
+    op.drop_index("ix_bookings_student_id", table_name="bookings")
+    op.drop_table("bookings")
     op.drop_index("ix_available_slots_tutor_id", table_name="available_slots")
     op.drop_table("available_slots")
     op.drop_table("students")

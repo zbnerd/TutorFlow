@@ -212,6 +212,28 @@ class ReviewModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    def to_entity(self):
+        """Convert ORM model to domain entity."""
+        from domain.entities import Review
+
+        return Review(
+            id=self.id,
+            booking_id=self.booking_id,
+            tutor_id=self.tutor_id,
+            student_id=self.student_id,
+            overall_rating=self.overall_rating,
+            kindness_rating=self.kindness_rating,
+            preparation_rating=self.preparation_rating,
+            improvement_rating=self.improvement_rating,
+            punctuality_rating=self.punctuality_rating,
+            content=self.content,
+            is_anonymous=self.is_anonymous,
+            tutor_reply=self.tutor_reply,
+            tutor_replied_at=self.tutor_replied_at,
+            created_at=self.created_at,
+            updated_at=self.updated_at,
+        )
+
 
 class ReviewReportModel(Base):
     """Review report ORM model."""
@@ -226,6 +248,22 @@ class ReviewReportModel(Base):
     processed_by: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     processed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    def to_entity(self):
+        """Convert ORM model to domain entity."""
+        from domain.entities import ReviewReport
+
+        return ReviewReport(
+            id=self.id,
+            review_id=self.review_id,
+            reporter_id=self.reporter_id,
+            reason=self.reason,
+            description=self.description,
+            is_processed=self.is_processed,
+            processed_by=self.processed_by,
+            processed_at=self.processed_at,
+            created_at=self.created_at,
+        )
 
 
 class AuditLogModel(Base):

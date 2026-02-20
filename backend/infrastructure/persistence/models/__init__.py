@@ -7,6 +7,12 @@ from infrastructure.persistence.models.user_model import (
     UserRole,
     User,
 )
+from infrastructure.persistence.models.booking_model import (
+    Booking as BookingModel,
+    BookingSession as BookingSessionModel,
+    BookingStatus as BookingStatusEnum,
+    SessionStatus as SessionStatusEnum,
+)
 
 __all__ = [
     "User",
@@ -15,4 +21,8 @@ __all__ = [
     "AvailableSlot",
     "UserRole",
     "NoShowPolicy",
+    "BookingModel",
+    "BookingSessionModel",
+    "BookingStatusEnum",
+    "SessionStatusEnum",
 ]

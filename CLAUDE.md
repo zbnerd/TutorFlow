@@ -2,6 +2,20 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Brand Identity
+
+**Primary Colors:**
+- **Sky Blue**: `#C7EAE4` - 주요 배경, 헤더, 넓은 영역
+- **Mint Green**: `#A7E8BD` - 강조 색상, 버튼, 카드, 하이라이트
+
+**Usage Guidelines:**
+- Primary actions, CTAs: Mint Green (#A7E8BD)
+- Secondary actions, backgrounds: Sky Blue (#C7EAE4)
+- Text contrast: Dark gray (#333) on light backgrounds
+- White space: Use generously for clean, modern feel
+
+These colors reflect trust, growth, and learning - fitting for an education platform.
+
 ## Project Overview
 
 TutorFlow AI is a platform for freelance tutors and small academies in South Korea, inspired by the "Baemin" (delivery marketplace) model. The platform automates booking, payment, and settlement processes while providing a **verified-payment review system** as the core moat.

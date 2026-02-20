@@ -7,6 +7,16 @@
 
 ---
 
+## Brand Identity
+
+**Primary Colors:**
+- **Sky Blue**: `#C7EAE4` - 주요 배경, 헤더, 넓은 영역
+- **Mint Green**: `#A7E8BD` - 강조 색상, 버튼, 카드, 하이라이트
+
+These colors reflect trust, growth, and learning - fitting for an education platform.
+
+---
+
 ## 1. Product Vision & Objectives
 
 ### 1.1 Vision Statement

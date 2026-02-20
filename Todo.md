@@ -4,6 +4,14 @@
 
 ---
 
+## Brand Identity
+
+**Primary Colors:**
+- **Sky Blue**: `#C7EAE4` - 주요 배경, 헤더, 넓은 영역
+- **Mint Green**: `#A7E8BD` - 강조 색상, 버튼, 카드, 하이라이트
+
+---
+
 ## Phase 1: Foundation (Week 1-4)
 **Goal:** 인프라 구축, 기본 기능 구현
 

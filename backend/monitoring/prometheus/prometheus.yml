@@ -1,0 +1,49 @@
+# Prometheus Configuration for TutorFlow API
+#
+# This is a template configuration file. To use Prometheus:
+# 1. Install Prometheus: https://prometheus.io/download/
+# 2. Save this file to /etc/prometheus/prometheus.yml
+# 3. Run: prometheus --config.file=/etc/prometheus/prometheus.yml
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    service: "tutorflow"
+    environment: "production"
+
+# Alertmanager configuration (optional)
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          # - "alertmanager:9093"
+
+# Rule files (optional)
+# rule_files:
+#   - "alerts.yml"
+
+# Scrape configurations
+scrape_configs:
+  # TutorFlow API metrics
+  - job_name: "tutorflow-api"
+    static_configs:
+      - targets: ["localhost:8000"]
+        labels:
+          service: "tutorflow-api"
+          env: "development"
+
+  # Prometheus self-monitoring
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Optional: PostgreSQL Exporter
+  # - job_name: "postgres"
+  #   static_configs:
+  #     - targets: ["localhost:9187"]
+
+  # Optional: Node Exporter for system metrics
+  # - job_name: "node"
+  #   static_configs:
+  #     - targets: ["localhost:9100"]

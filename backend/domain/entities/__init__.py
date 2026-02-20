@@ -178,19 +178,8 @@ class Payment:
             self.net_amount = self.amount.subtract(self.fee_amount)
 
 
-@dataclass
-class Settlement:
-    """Monthly settlement for tutors."""
-    id: int | None = None
-    tutor_id: int | None = None
-    year_month: str | None = None  # "2024-01"
-    total_sessions: int = 0
-    total_amount: Money | None = None
-    total_fee: Money | None = None
-    net_amount: Money | None = None
-    is_paid: bool = False
-    paid_at: datetime | None = None
-    created_at: datetime | None = None
+# Import settlement entities
+from domain.entities.settlement import Settlement, SettlementStatus
 
 
 @dataclass
@@ -276,6 +265,7 @@ __all__ = [
     "BookingSession",
     "Payment",
     "Settlement",
+    "SettlementStatus",
     "Review",
     "ReviewReport",
     "AuditLog",

@@ -6,7 +6,19 @@ from application.use_cases.attendance import (
     AttendanceValidationError,
 )
 
+# Import refund use cases
+from application.use_cases.refund import (
+    CalculateRefundUseCase,
+    RefundCalculationError,
+    RefundBreakdown,
+    RefundGuideResponse,
+)
+
 __all__ = [
     "AttendanceUseCases",
     "AttendanceValidationError",
+    "CalculateRefundUseCase",
+    "RefundCalculationError",
+    "RefundBreakdown",
+    "RefundGuideResponse",
 ]

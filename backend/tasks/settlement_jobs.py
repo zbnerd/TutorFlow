@@ -7,22 +7,14 @@ Jobs can be scheduled using Celery Beat, APScheduler, or any cron-compatible sch
 Runs on the 1st of each month to calculate settlements for the previous month.
 """
 import asyncio
-from datetime import date, datetime, timedelta
+from datetime import date
 from typing import Optional
 
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, func as sql_func
-
 from config import settings
-from domain.entities import Settlement, SettlementStatus, Money, SessionStatus, BookingStatus
+from application.use_cases.settlement import CalculateSettlementUseCase
+from domain.ports import SettlementRepositoryPort
 from infrastructure.database import get_async_session
-from infrastructure.persistence.models import (
-    SettlementModel,
-    BookingSessionModel,
-    BookingModel,
-    TutorModel,
-    PaymentModel,
-)
+from infrastructure.persistence.repositories.settlement_repository import SettlementRepository
 
 
 class BatchJobResult:
@@ -57,13 +49,7 @@ async def monthly_settlement_job(year_month: Optional[str] = None) -> BatchJobRe
     Monthly settlement calculation job.
 
     Runs on the 1st of each month to calculate settlements for the previous month.
-    Aggregates all completed sessions from the target month per tutor.
-
-    Formula:
-        total_amount = sum of session fees (from tutor's hourly_rate)
-        platform_fee = total_amount * 0.05 (5%)
-        pg_fee = total_amount * 0.03 (3%)
-        net_amount = total_amount - platform_fee - pg_fee
+    Delegates business logic to CalculateSettlementUseCase.
 
     Args:
         year_month: Year-month string in format "YYYY-MM" (defaults to previous month)
@@ -76,7 +62,6 @@ async def monthly_settlement_job(year_month: Optional[str] = None) -> BatchJobRe
 
     # Determine target month
     if year_month is None:
-        # Default to previous month
         today = date.today()
         if today.month == 1:
             target_date = date(today.year - 1, 12, 1)
@@ -84,91 +69,24 @@ async def monthly_settlement_job(year_month: Optional[str] = None) -> BatchJobRe
             target_date = date(today.year, today.month - 1, 1)
         year_month = target_date.strftime("%Y-%m")
 
-    # Parse year_month to get date range
-    year, month = map(int, year_month.split("-"))
-    month_start = date(year, month, 1)
-
-    # Calculate month end
-    if month == 12:
-        month_end = date(year + 1, 1, 1) - timedelta(days=1)
-    else:
-        month_end = date(year, month + 1, 1) - timedelta(days=1)
-
-    processed = 0
-    failed = 0
-    errors = []
-    created_settlements = []
-
     try:
         async for db in get_async_session():
-            # Get all tutors who have completed sessions in the target month
-            tutor_revenue = await _calculate_tutor_revenue(db, month_start, month_end)
+            # Initialize use case with repository
+            settlement_repo = SettlementRepository(db)
+            use_case = CalculateSettlementUseCase(settlement_repo=settlement_repo)
 
-            for tutor_id, revenue_data in tutor_revenue.items():
-                try:
-                    # Check if settlement already exists
-                    existing = await _get_existing_settlement(db, tutor_id, year_month)
-                    if existing:
-                        errors.append(
-                            f"Tutor {tutor_id}: Settlement for {year_month} already exists (ID: {existing.id})"
-                        )
-                        failed += 1
-                        continue
-
-                    # Calculate settlement amounts
-                    total_amount = revenue_data["total_amount"]
-                    total_sessions = revenue_data["total_sessions"]
-
-                    # Calculate fees
-                    platform_fee_amount = int(total_amount * 0.05)  # 5%
-                    pg_fee_amount = int(total_amount * 0.03)  # 3%
-                    net_amount = total_amount - platform_fee_amount - pg_fee_amount
-
-                    # Create settlement record
-                    settlement = SettlementModel(
-                        tutor_id=tutor_id,
-                        year_month=year_month,
-                        total_sessions=total_sessions,
-                        total_amount=total_amount,
-                        total_fee=platform_fee_amount + pg_fee_amount,  # For backward compatibility
-                        net_amount=net_amount,
-                        is_paid=False,
-                        paid_at=None,
-                        created_at=datetime.utcnow(),
-                    )
-
-                    db.add(settlement)
-                    await db.flush()
-
-                    created_settlements.append({
-                        "tutor_id": tutor_id,
-                        "year_month": year_month,
-                        "total_sessions": total_sessions,
-                        "total_amount": total_amount,
-                        "platform_fee": platform_fee_amount,
-                        "pg_fee": pg_fee_amount,
-                        "net_amount": net_amount,
-                    })
-
-                    processed += 1
-
-                except Exception as e:
-                    failed += 1
-                    errors.append(f"Tutor {tutor_id}: {str(e)}")
-
-            # Commit all settlements
-            await db.commit()
+            # Calculate settlements for all tutors
+            result = await use_case.calculate_all_tutors_settlement(year_month, db)
 
             message = (
                 f"Monthly settlement calculation completed for {year_month}. "
-                f"Processed: {processed}, Failed: {failed}"
+                f"Processed: {result['processed']}, Failed: {result['failed']}"
             )
 
             return BatchJobResult(
                 success=True,
-                processed_count=processed,
-                failed_count=failed,
-                errors=errors,
+                processed_count=result["processed"],
+                failed_count=result["failed"],
                 message=message,
             )
 
@@ -178,88 +96,6 @@ async def monthly_settlement_job(year_month: Optional[str] = None) -> BatchJobRe
             errors=[f"Job failed: {str(e)}"],
             message=f"Monthly settlement job failed: {str(e)}",
         )
-
-
-async def _calculate_tutor_revenue(
-    db: AsyncSession,
-    month_start: date,
-    month_end: date,
-) -> dict[int, dict]:
-    """
-    Calculate revenue for each tutor from completed sessions in a month.
-
-    Args:
-        db: Database session
-        month_start: First day of the month
-        month_end: Last day of the month
-
-    Returns:
-        Dictionary mapping tutor_id to revenue data:
-        {
-            tutor_id: {
-                "total_amount": int,  # Total amount in KRW
-                "total_sessions": int,  # Number of completed sessions
-            }
-        }
-    """
-    # Query completed sessions within the date range
-    result = await db.execute(
-        select(
-            TutorModel.id,
-            TutorModel.hourly_rate,
-            sql_func.count(BookingSessionModel.id).label("session_count"),
-        )
-        .join(BookingModel, TutorModel.id == BookingModel.tutor_id)
-        .join(BookingSessionModel, BookingModel.id == BookingSessionModel.booking_id)
-        .where(
-            and_(
-                BookingSessionModel.session_date >= month_start,
-                BookingSessionModel.session_date <= month_end,
-                BookingSessionModel.status == SessionStatus.COMPLETED,
-                BookingModel.status.in_([
-                    BookingStatus.APPROVED,
-                    BookingStatus.IN_PROGRESS,
-                    BookingStatus.COMPLETED,
-                ]),
-            )
-        )
-        .group_by(TutorModel.id, TutorModel.hourly_rate)
-    )
-
-    tutor_revenue = {}
-    for row in result:
-        tutor_id = row[0]
-        hourly_rate = row[1]
-        session_count = row[2]
-
-        # Calculate total amount (hourly_rate * session_count)
-        # Note: This assumes 1-hour sessions. For variable-length sessions,
-        # you'd need to store session_duration in BookingSessionModel
-        total_amount = (hourly_rate or 0) * session_count
-
-        tutor_revenue[tutor_id] = {
-            "total_amount": total_amount,
-            "total_sessions": session_count,
-        }
-
-    return tutor_revenue
-
-
-async def _get_existing_settlement(
-    db: AsyncSession,
-    tutor_id: int,
-    year_month: str,
-) -> Optional[SettlementModel]:
-    """Check if a settlement already exists for the tutor and month."""
-    result = await db.execute(
-        select(SettlementModel).where(
-            and_(
-                SettlementModel.tutor_id == tutor_id,
-                SettlementModel.year_month == year_month,
-            )
-        )
-    )
-    return result.scalar_one_or_none()
 
 
 async def payment_disbursement_job(year_month: Optional[str] = None) -> BatchJobResult:
@@ -335,8 +171,8 @@ try:
 
     celery_app = Celery(
         "tutorflow_settlement",
-        broker=settings.get("CELERY_BROKER_URL", "redis://localhost:6379/0"),
-        backend=settings.get("CELERY_RESULT_BACKEND", "redis://localhost:6379/0"),
+        broker=getattr(settings, "CELERY_BROKER_URL", "redis://localhost:6379/0"),
+        backend=getattr(settings, "CELERY_RESULT_BACKEND", "redis://localhost:6379/0"),
     )
 
     @celery_app.task
@@ -357,12 +193,11 @@ try:
     celery_app.conf.beat_schedule = {
         "monthly-settlement": {
             "task": "tasks.settlement_jobs.celery_monthly_settlement_task",
-            "schedule": crontab(hour=2, minute=0, day_of_month=1),  # 02:00 on 1st of each month
+            "schedule": crontab(hour=2, minute=0, day_of_month=1),
         },
-        # Payment disbursement would typically run a few days after settlement
         "payment-disbursement": {
             "task": "tasks.settlement_jobs.celery_payment_disbursement_task",
-            "schedule": crontab(hour=10, minute=0, day_of_month=5),  # 10:00 on 5th of each month
+            "schedule": crontab(hour=10, minute=0, day_of_month=5),
         },
     }
 

@@ -1,9 +1,7 @@
-"""Payment API routes."""
-import hmac
-import hashlib
-import base64
+"""Payment API routes for Toss Payments integration."""
 from typing import Annotated
 
+from api.v1.routes.dependencies import get_current_user, get_repository_factory
 from application.dto.payment import (
     CancelPaymentRequest,
     CancelPaymentResponse,
@@ -12,54 +10,29 @@ from application.dto.payment import (
     PreparePaymentRequest,
     PreparePaymentResponse,
     RefundEstimateResponse,
-    TossWebhookRequest,
+    PaymentStatusResponse,
 )
 from application.use_cases.payment import PaymentUseCases
 from config import settings
-from fastapi import APIRouter, Depends, Header, Request, HTTPException, status
+from domain.entities import User
+from fastapi import APIRouter, Depends, Request, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from infrastructure.database import get_db
+from infrastructure.external.payments import TossPaymentsAdapter
+from infrastructure.persistence.repository_factory import RepositoryFactory
 
 router = APIRouter()
-payment_use_cases = PaymentUseCases()
 
-
-def verify_webhook_signature(
-    body: bytes,
-    signature: str,
-    secret: str = settings.TOSS_PAYMENTS_SECRET_KEY,
-) -> bool:
-    """Verify Toss webhook signature.
-
-    Args:
-        body: Raw request body
-        signature: Toss-Signature header value
-        secret: Toss Payments secret key
-
-    Returns:
-        True if signature is valid
-    """
-    if not signature:
-        return False
-
-    # Toss uses HMAC-SHA256
-    # Format: "BASE64(HMAC-SHA256(secret, body))"
-    expected_hmac = hmac.new(
-        secret.encode(),
-        body,
-        hashlib.sha256,
-    ).digest()
-    expected_signature = base64.b64encode(expected_hmac).decode()
-
-    # Use constant-time comparison to prevent timing attacks
-    return hmac.compare_digest(expected_signature, signature)
+# Get fee rate from config
+FEE_RATE = getattr(settings, 'TOSS_PAYMENTS_FEE_RATE', 0.05)
 
 
 @router.post("/prepare", response_model=PreparePaymentResponse)
 async def prepare_payment(
     request: PreparePaymentRequest,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    repos: Annotated[RepositoryFactory, Depends(get_repository_factory)],
+    current_user: Annotated[User, Depends(get_current_user)],
 ) -> PreparePaymentResponse:
     """Prepare payment for booking.
 
@@ -69,26 +42,59 @@ async def prepare_payment(
     Args:
         request: Payment preparation request
         db: Database session
+        current_user: Authenticated user
 
     Returns:
         Payment preparation details
-    """
-    # In production, verify booking exists and calculate amount
-    # booking = await booking_repository.find_by_id(request.booking_id)
-    # if not booking:
-    #     raise HTTPException(status_code=404, detail="Booking not found")
 
-    return await payment_use_cases.prepare_payment(
-        booking_id=request.booking_id,
-        amount=request.amount,
-        order_name=request.order_name,
+    Raises:
+        HTTPException 404: If booking not found
+        HTTPException 400: If invalid amount
+    """
+    booking_repo = BookingRepository(db)
+    payment_repo = PaymentRepository(db)
+    payment_gateway = TossPaymentsAdapter()
+
+    # Verify booking exists
+    booking = await booking_repo.find_by_id(int(request.booking_id))
+    if not booking:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Booking not found",
+        )
+
+    user_id = current_user.id
+
+    payment_use_cases = PaymentUseCases(
+        payment_gateway=payment_gateway,
+        payment_repo=payment_repo,
+        booking_repo=booking_repo,
+        fee_rate=FEE_RATE,
     )
+
+    try:
+        return await payment_use_cases.prepare_payment(
+            booking_id=int(request.booking_id),
+            amount=request.amount,
+            order_name=request.order_name,
+            user_id=user_id,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Payment preparation failed: {str(e)}",
+        ) from e
 
 
 @router.post("/confirm", response_model=ConfirmPaymentResponse)
 async def confirm_payment(
     request: ConfirmPaymentRequest,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    repos: Annotated[RepositoryFactory, Depends(get_repository_factory)],
 ) -> ConfirmPaymentResponse:
     """Confirm payment after user approval.
 
@@ -103,24 +109,28 @@ async def confirm_payment(
         Payment confirmation details
 
     Raises:
-        HTTPException: If payment verification fails
+        HTTPException 400: If payment verification fails
     """
+    payment_gateway = TossPaymentsAdapter()
+
+    payment_use_cases = PaymentUseCases(
+        payment_gateway=payment_gateway,
+        payment_repo=repos.payment(),
+        booking_repo=repos.booking(),
+        fee_rate=FEE_RATE,
+    )
+
     try:
-        # In production, fetch booking from database
-        # booking = await booking_repository.find_by_id(request.order_id)
-        # if not booking:
-        #     raise HTTPException(status_code=404, detail="Booking not found")
-
-        # Mock booking for now
-        from domain.entities import Booking
-
-        mock_booking = Booking(id=request.order_id, total_sessions=10)
-
-        return await payment_use_cases.confirm_payment(request, mock_booking)
+        return await payment_use_cases.confirm_payment(request)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
+        ) from e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Payment confirmation failed: {str(e)}",
         ) from e
 
 
@@ -128,7 +138,7 @@ async def confirm_payment(
 async def cancel_payment(
     payment_key: str,
     request: CancelPaymentRequest,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    repos: Annotated[RepositoryFactory, Depends(get_repository_factory)],
 ) -> CancelPaymentResponse:
     """Cancel a payment.
 
@@ -141,22 +151,42 @@ async def cancel_payment(
         Cancellation details
 
     Raises:
-        HTTPException: If cancellation fails
+        HTTPException 404: If payment not found
+        HTTPException 400: If cancellation fails
     """
+    payment_gateway = TossPaymentsAdapter()
+
+    payment_use_cases = PaymentUseCases(
+        payment_gateway=payment_gateway,
+        payment_repo=repos.payment(),
+        booking_repo=repos.booking(),
+        fee_rate=FEE_RATE,
+    )
+
     try:
         return await payment_use_cases.cancel_payment(payment_key, request)
     except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(e),
+            ) from e
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         ) from e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Payment cancellation failed: {str(e)}",
+        ) from e
 
 
-@router.get("/{payment_key}")
+@router.get("/{payment_key}", response_model=PaymentStatusResponse)
 async def get_payment_status(
     payment_key: str,
-    db: Annotated[AsyncSession, Depends(get_db)],
-) -> dict:
+    repos: Annotated[RepositoryFactory, Depends(get_repository_factory)],
+) -> PaymentStatusResponse:
     """Get payment status.
 
     Args:
@@ -165,14 +195,42 @@ async def get_payment_status(
 
     Returns:
         Payment status details
+
+    Raises:
+        HTTPException 404: If payment not found
     """
-    return await payment_use_cases.get_payment_status(payment_key)
+    payment_gateway = TossPaymentsAdapter()
+
+    payment_use_cases = PaymentUseCases(
+        payment_gateway=payment_gateway,
+        payment_repo=repos.payment(),
+        booking_repo=repos.booking(),
+        fee_rate=FEE_RATE,
+    )
+
+    try:
+        return await payment_use_cases.get_payment_status(payment_key)
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(e),
+            ) from e
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get payment status: {str(e)}",
+        ) from e
 
 
-@router.get("/bookings/{booking_id}/refund-estimate", response_model=RefundEstimateResponse)
+@router.get("/booking/{booking_id}/refund-estimate", response_model=RefundEstimateResponse)
 async def get_refund_estimate(
-    booking_id: str,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    booking_id: int,
+    repos: Annotated[RepositoryFactory, Depends(get_repository_factory)],
 ) -> RefundEstimateResponse:
     """Calculate refund estimate for a booking.
 
@@ -182,17 +240,104 @@ async def get_refund_estimate(
 
     Returns:
         Refund estimate breakdown
+
+    Raises:
+        HTTPException 404: If booking or payment not found
+        HTTPException 400: If no payment found
     """
-    # In production, fetch booking and payment from database
-    # booking = await booking_repository.find_by_id(booking_id)
-    # payment = await payment_repository.find_by_booking_id(booking_id)
+    payment_gateway = TossPaymentsAdapter()
 
-    # Mock data for now
-    from domain.entities import Booking
-
-    mock_booking = Booking(id=booking_id, total_sessions=10, completed_sessions=3)
-
-    return await payment_use_cases.calculate_refund_estimate(
-        booking=mock_booking,
-        total_paid=500000,  # Mock amount
+    payment_use_cases = PaymentUseCases(
+        payment_gateway=payment_gateway,
+        payment_repo=repos.payment(),
+        booking_repo=repos.booking(),
+        fee_rate=FEE_RATE,
     )
+
+    try:
+        return await payment_use_cases.calculate_refund_estimate(booking_id)
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(e),
+            ) from e
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to calculate refund estimate: {str(e)}",
+        ) from e
+
+
+@router.post("/webhooks/toss")
+async def toss_webhook(
+    request: Request,
+    repos: Annotated[RepositoryFactory, Depends(get_repository_factory)],
+) -> dict:
+    """Handle Toss Payments webhook.
+
+    Verifies signature and updates payment status.
+
+    Args:
+        request: FastAPI Request object
+        db: Database session
+
+    Returns:
+        Webhook processing result
+
+    Raises:
+        HTTPException 401: If signature verification fails
+        HTTPException 400: If invalid payload
+    """
+    booking_repo = BookingRepository(db)
+    payment_repo = PaymentRepository(db)
+    payment_gateway = TossPaymentsAdapter()
+
+    # Get raw body for signature verification
+    raw_body = await request.body()
+
+    # Verify signature
+    signature = request.headers.get("Toss-Signature")
+    if not signature:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing Toss-Signature header",
+        )
+
+    if not payment_gateway.verify_webhook_signature(
+        payload=raw_body.decode(),
+        signature=signature,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid signature",
+        )
+
+    # Parse webhook data
+    try:
+        webhook_data = await request.json()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid JSON payload",
+        ) from e
+
+    payment_use_cases = PaymentUseCases(
+        payment_gateway=payment_gateway,
+        payment_repo=payment_repo,
+        booking_repo=booking_repo,
+        fee_rate=FEE_RATE,
+    )
+
+    try:
+        result = await payment_use_cases.handle_webhook(webhook_data)
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Webhook processing failed: {str(e)}",
+        ) from e

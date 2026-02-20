@@ -96,6 +96,33 @@ class RefundEstimateResponse(BaseModel):
     pg_fee: int = Field(..., description="PG fee (may not be refundable)")
 
 
+class RefundBreakdownItem(BaseModel):
+    """Single item in refund breakdown."""
+
+    label: str = Field(..., description="Label for the item (e.g., '완료된 수업')")
+    value: str = Field(..., description="Formatted value (e.g., '-50,000원')")
+    description: str = Field(..., description="Additional description")
+    is_total: bool = Field(default=False, description="Whether this is the total line")
+
+
+class RefundGuideResponse(BaseModel):
+    """Refund guide with detailed breakdown."""
+
+    booking_id: int
+    total_paid: int = Field(..., description="Total amount paid")
+    total_sessions: int = Field(..., description="Total number of sessions")
+    completed_sessions: int = Field(..., description="Number of completed sessions")
+    remaining_sessions: int = Field(..., description="Number of remaining sessions")
+    session_rate: int = Field(..., description="Rate per session")
+    refund_amount: int = Field(..., description="Calculated refund amount")
+    platform_fee: int = Field(..., description="Platform fee to be refunded")
+    pg_fee: int = Field(..., description="PG fee (may not be refundable)")
+    policy_description: str = Field(..., description="No-show policy description")
+    breakdown_items: list[RefundBreakdownItem] = Field(..., description="Detailed breakdown items")
+    is_eligible: bool = Field(..., description="Whether refund is eligible")
+    reason: str | None = Field(None, description="Reason if not eligible")
+
+
 class PaymentStatusResponse(BaseModel):
     """Payment status response."""
 

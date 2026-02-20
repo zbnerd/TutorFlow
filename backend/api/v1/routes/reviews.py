@@ -1,4 +1,8 @@
 """Review API routes."""
+from typing import Annotated
+
+from api.v1.routes.dependencies import get_current_user, get_current_student, get_current_tutor
+from domain.entities import User
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,7 +33,7 @@ def get_review_use_cases(db: AsyncSession = Depends(get_db)) -> ReviewUseCases:
 @router.post("", response_model=ReviewResponse, status_code=status.HTTP_201_CREATED)
 async def create_review(
     request: ReviewCreateRequest,
-    current_user_id: int = Query(..., description="Current user ID from JWT"),
+    current_user: Annotated[User, Depends(get_current_student)],
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -47,10 +51,10 @@ async def create_review(
     use_cases = get_review_use_cases(db)
 
     try:
+        # tutor_id is fetched from the booking in the use case
         review = await use_cases.create_review(
             booking_id=request.booking_id,
-            tutor_id=current_user_id,  # TODO: Get from booking
-            student_id=current_user_id,
+            student_id=current_user.id,
             overall_rating=request.overall_rating,
             kindness_rating=request.kindness_rating,
             preparation_rating=request.preparation_rating,
@@ -119,7 +123,7 @@ async def get_review(
 async def update_review(
     review_id: int,
     request: ReviewUpdateRequest,
-    current_user_id: int = Query(..., description="Current user ID from JWT"),
+    current_user: Annotated[User, Depends(get_current_user)],
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -137,7 +141,7 @@ async def update_review(
     try:
         review = await use_cases.update_review(
             review_id=review_id,
-            student_id=current_user_id,
+            student_id=current_user.id,
             overall_rating=request.overall_rating,
             kindness_rating=request.kindness_rating,
             preparation_rating=request.preparation_rating,
@@ -157,7 +161,7 @@ async def update_review(
 @router.delete("/{review_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_review(
     review_id: int,
-    current_user_id: int = Query(..., description="Current user ID from JWT"),
+    current_user: Annotated[User, Depends(get_current_user)],
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -173,7 +177,7 @@ async def delete_review(
     use_cases = get_review_use_cases(db)
 
     try:
-        await use_cases.delete_review(review_id, current_user_id)
+        await use_cases.delete_review(review_id, current_user.id)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -185,7 +189,7 @@ async def delete_review(
 async def add_tutor_reply(
     review_id: int,
     request: ReviewReplyRequest,
-    current_user_id: int = Query(..., description="Current user ID from JWT"),
+    current_user: Annotated[User, Depends(get_current_tutor)],
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -202,7 +206,7 @@ async def add_tutor_reply(
     try:
         review = await use_cases.add_tutor_reply(
             review_id=review_id,
-            tutor_id=current_user_id,
+            tutor_id=current_user.id,
             reply=request.reply,
         )
         return ReviewResponse(**review.__dict__)
@@ -217,7 +221,7 @@ async def add_tutor_reply(
 async def report_review(
     review_id: int,
     request: ReviewReportRequest,
-    current_user_id: int = Query(..., description="Current user ID from JWT"),
+    current_user: Annotated[User, Depends(get_current_user)],
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -233,7 +237,7 @@ async def report_review(
     try:
         await use_cases.report_review(
             review_id=review_id,
-            reporter_id=current_user_id,
+            reporter_id=current_user.id,
             reason=request.reason,
             description=request.description,
         )

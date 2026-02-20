@@ -4,6 +4,7 @@ from typing import List, Optional
 from datetime import datetime
 
 from domain.entities.attendance import AttendanceStatus
+from domain.entities import SessionStatus
 
 
 class AttendanceMarkRequest(BaseModel):
@@ -70,3 +71,36 @@ class ErrorResponse(BaseModel):
     code: str
     message: str
     details: Optional[dict] = None
+
+
+class AttendanceSessionResponse(BaseModel):
+    """Attendance session response."""
+    id: int
+    booking_id: int
+    session_date: datetime
+    session_time: str
+    status: SessionStatus
+    attendance_checked_at: Optional[datetime] = None
+    attendance_checked_by: Optional[int] = None
+    notes: Optional[str] = None
+    student_name: Optional[str] = None
+    student_grade: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+        use_enum_values = True
+
+
+class AttendanceSessionsListResponse(BaseModel):
+    """Attendance sessions list response with pagination."""
+    sessions: List[AttendanceSessionResponse]
+    total: int
+    offset: int
+    limit: int
+
+
+class AttendanceStatusResponse(BaseModel):
+    """Attendance status response."""
+    total: int
+    by_status: dict[str, int]
+    recent_sessions: List[AttendanceSessionResponse]

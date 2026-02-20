@@ -1,22 +1,18 @@
 """Authentication routes for Kakao OAuth and token management."""
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from application.dto.auth import AuthResponse, TokenRefreshRequest, UserInfoResponse
+from api.v1.routes.dependencies import get_current_user
+from application.dto.auth import AuthResponse, TokenRefreshRequest, UserInfoResponse, KakaoLoginRequest
 from application.use_cases.auth import AuthUseCases
+from domain.entities import User
 from infrastructure.external.auth import KakaoOAuthAdapter, TokenService
 from infrastructure.persistence.repositories import UserRepository
 from infrastructure.database import get_db
+from typing import Annotated
 
 
 router = APIRouter()
-
-
-class KakaoLoginRequest(BaseModel):
-    """Kakao login request DTO."""
-
-    code: str
 
 
 @router.post("/kakao", response_model=AuthResponse)
@@ -130,9 +126,8 @@ async def refresh_tokens(
 
 
 @router.get("/me", response_model=UserInfoResponse)
-async def get_current_user(
-    db: AsyncSession = Depends(get_db),
-    token: str = Depends(lambda: None),
+async def get_user_info(
+    current_user: Annotated[User, Depends(get_current_user)],
 ):
     """
     Get current user info from access token.
@@ -146,9 +141,12 @@ async def get_current_user(
         HTTPException 401: If token is invalid or expired
         HTTPException 404: If user not found
     """
-    # TODO: Implement proper JWT authentication dependency
-    # For now, this is a placeholder
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Authentication dependency not yet implemented",
+    return UserInfoResponse(
+        id=current_user.id,
+        email=current_user.email,
+        name=current_user.name or "",
+        role=current_user.role.value if current_user.role else "student",
+        phone=current_user.phone,
+        profile_image_url=current_user.profile_image_url,
+        is_active=current_user.is_active,
     )

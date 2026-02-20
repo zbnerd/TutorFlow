@@ -22,26 +22,22 @@ engine = create_async_engine(
 )
 
 
-# Session maker factory
-_session_maker: async_sessionmaker[AsyncSession] | None = None
+# Session maker factory (initialized at module load time)
+_session_maker: async_sessionmaker[AsyncSession] = async_sessionmaker(
+    engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+)
 
 
 def get_async_session_maker() -> async_sessionmaker[AsyncSession]:
-    """Get or create async session maker."""
-    global _session_maker
-    if _session_maker is None:
-        _session_maker = async_sessionmaker(
-            engine,
-            class_=AsyncSession,
-            expire_on_commit=False,
-        )
+    """Get async session maker."""
     return _session_maker
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Get database session for dependency injection."""
-    session_maker = get_async_session_maker()
-    async with session_maker() as session:
+    async with _session_maker() as session:
         try:
             yield session
         except Exception:

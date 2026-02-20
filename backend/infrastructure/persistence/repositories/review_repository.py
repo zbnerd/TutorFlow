@@ -140,25 +140,6 @@ class ReviewRepository(ReviewRepositoryPort):
             "reply_rate": reply_rate,
         }
 
-    async def get_tutor_badges(self, tutor_id: int) -> list[str]:
-        """Get tutor badges based on review statistics."""
-        stats = await self.get_tutor_stats(tutor_id)
-        badges = []
-
-        # Popular Tutor: 10+ reviews AND 4.5+ avg rating
-        if stats["total_reviews"] >= 10 and stats["average_rating"] >= 4.5:
-            badges.append("popular_tutor")
-
-        # Best Tutor: 30+ reviews AND 4.8+ avg rating
-        if stats["total_reviews"] >= 30 and stats["average_rating"] >= 4.8:
-            badges.append("best_tutor")
-
-        # Response King: 80%+ reply rate
-        if stats["reply_rate"] >= 80.0:
-            badges.append("response_king")
-
-        return badges
-
     async def delete(self, review_id: int) -> bool:
         """Delete review by ID."""
         result = await self.session.execute(
@@ -241,12 +222,12 @@ class ReviewRepository(ReviewRepositoryPort):
         db_reports = result.scalars().all()
         return [r.to_entity() for r in db_reports]
 
-    async def can_create_review(self, booking_id: int, student_id: int) -> tuple[bool, str]:
+    async def can_create_review(self, booking_id: int, student_id: int) -> tuple[bool, str, int | None]:
         """
         Check if student can create review for booking.
 
         Returns:
-            Tuple of (can_create, error_message)
+            Tuple of (can_create, error_message, tutor_id)
         """
         from infrastructure.persistence.models import BookingModel, PaymentModel
 
@@ -259,12 +240,12 @@ class ReviewRepository(ReviewRepositoryPort):
         booking = booking_result.scalar_one_or_none()
 
         if not booking:
-            return False, "예약을 찾을 수 없습니다."
+            return False, "예약을 찾을 수 없습니다.", None
 
         # Check if review already exists
         existing_review = await self.find_by_booking_id(booking_id)
         if existing_review:
-            return False, "이미 리뷰를 작성했습니다."
+            return False, "이미 리뷰를 작성했습니다.", None
 
         # Check payment status
         payment_result = await self.session.execute(
@@ -273,13 +254,13 @@ class ReviewRepository(ReviewRepositoryPort):
         payment = payment_result.scalar_one_or_none()
 
         if not payment or payment.status.value != "paid":
-            return False, "결제가 완료된 예약에만 리뷰를 작성할 수 있습니다."
+            return False, "결제가 완료된 예약에만 리뷰를 작성할 수 있습니다.", None
 
         # Check if at least one session completed
         if booking.completed_sessions < 1:
-            return False, "최소 1회 이상 수업이 완료된 후 리뷰를 작성할 수 있습니다."
+            return False, "최소 1회 이상 수업이 완료된 후 리뷰를 작성할 수 있습니다.", None
 
-        return True, ""
+        return True, "", booking.tutor_id
 
     async def is_review_editable(self, review_id: int, student_id: int) -> bool:
         """Check if review is editable (within 7 days of creation)."""

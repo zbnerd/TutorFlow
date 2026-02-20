@@ -72,6 +72,13 @@ class Settings(BaseSettings):
     BATCH_JOBS_ENABLED: bool = True
     BATCH_TIMEZONE: str = "Asia/Seoul"
 
+    # Badge Thresholds (Tutor Recognition)
+    BADGE_POPULAR_TUTOR_MIN_REVIEWS: int = 10
+    BADGE_POPULAR_TUTOR_MIN_RATING: float = 4.5
+    BADGE_BEST_TUTOR_MIN_REVIEWS: int = 30
+    BADGE_BEST_TUTOR_MIN_RATING: float = 4.8
+    BADGE_REPLY_KING_RESPONSE_RATE: float = 80.0  # Percentage
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def parse_cors_origins(cls, v: str | list[str]) -> list[str]:

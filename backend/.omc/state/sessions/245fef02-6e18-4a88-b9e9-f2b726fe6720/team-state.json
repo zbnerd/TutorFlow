@@ -1,0 +1,8 @@
+{
+  "active": true,
+  "started_at": "2026-02-20T18:22:19.686Z",
+  "original_prompt": "/oh-my-claudecode:team 3:executor \"코드 전체를 탐색해서 prd, todo에서 빼먹은것이나 잘못구ㅎ현된거 없는지 살펴보고 리팩토링해. stateful요소, dirty code, anti pattern 전부 리팩토링대상이야.\"",
+  "session_id": "245fef02-6e18-4a88-b9e9-f2b726fe6720",
+  "reinforcement_count": 0,
+  "last_checked_at": "2026-02-20T18:22:19.687Z"
+}

@@ -6,6 +6,12 @@ from application.use_cases.attendance import (
     AttendanceValidationError,
 )
 
+# Import available slot use cases
+from application.use_cases.available_slot import (
+    AvailableSlotUseCases,
+    SlotValidationError,
+)
+
 # Import refund use cases
 from application.use_cases.refund import (
     CalculateRefundUseCase,
@@ -17,6 +23,8 @@ from application.use_cases.refund import (
 __all__ = [
     "AttendanceUseCases",
     "AttendanceValidationError",
+    "AvailableSlotUseCases",
+    "SlotValidationError",
     "CalculateRefundUseCase",
     "RefundCalculationError",
     "RefundBreakdown",

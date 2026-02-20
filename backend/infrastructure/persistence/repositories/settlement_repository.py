@@ -8,19 +8,35 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from domain.entities import Settlement, Money
 from domain.ports import SettlementRepositoryPort
 from infrastructure.persistence.models import SettlementModel
+from infrastructure.persistence.repositories.audit_log_repository import AuditLogRepository
 
 
 class SettlementRepository(SettlementRepositoryPort):
     """SQLAlchemy implementation of SettlementRepositoryPort."""
 
-    def __init__(self, session: AsyncSession):
-        """Initialize repository with database session."""
+    def __init__(self, session: AsyncSession, audit_repo: Optional[AuditLogRepository] = None):
+        """Initialize repository with database session and optional audit repository."""
         self.session = session
+        self.audit_repo = audit_repo
 
-    async def save(self, settlement: Settlement) -> Settlement:
+    async def save(
+        self,
+        settlement: Settlement,
+        actor_id: Optional[int] = None,
+        ip_address: Optional[str] = None,
+    ) -> Settlement:
         """Save settlement to database (create or update)."""
         if settlement.id is None:
             # Create new settlement
+            new_values = {
+                "tutor_id": settlement.tutor_id,
+                "year_month": settlement.year_month,
+                "total_sessions": settlement.total_sessions,
+                "total_amount": settlement.total_amount.amount_krw if settlement.total_amount else 0,
+                "platform_fee": settlement.platform_fee.amount_krw if settlement.platform_fee else 0,
+                "net_amount": settlement.net_amount.amount_krw if settlement.net_amount else 0,
+                "is_paid": settlement.is_paid,
+            }
             db_settlement = SettlementModel(
                 tutor_id=settlement.tutor_id,
                 year_month=settlement.year_month,
@@ -34,6 +50,19 @@ class SettlementRepository(SettlementRepositoryPort):
             self.session.add(db_settlement)
             await self.session.flush()
             await self.session.refresh(db_settlement)
+
+            # Log creation
+            if self.audit_repo:
+                await self.audit_repo.log_change(
+                    entity_type="settlement",
+                    entity_id=db_settlement.id,
+                    action="create",
+                    old_value=None,
+                    new_value=new_values,
+                    actor_id=actor_id,
+                    ip_address=ip_address,
+                )
+
             return self._to_entity(db_settlement)
         else:
             # Update existing settlement
@@ -42,6 +71,16 @@ class SettlementRepository(SettlementRepositoryPort):
             )
             db_settlement = result.scalar_one_or_none()
             if db_settlement:
+                # Capture old values for audit
+                old_values = {
+                    "total_sessions": db_settlement.total_sessions,
+                    "total_amount": db_settlement.total_amount,
+                    "total_fee": db_settlement.total_fee,
+                    "net_amount": db_settlement.net_amount,
+                    "is_paid": db_settlement.is_paid,
+                    "paid_at": db_settlement.paid_at.isoformat() if db_settlement.paid_at else None,
+                }
+
                 db_settlement.total_sessions = settlement.total_sessions
                 db_settlement.total_amount = settlement.total_amount.amount_krw if settlement.total_amount else 0
                 db_settlement.total_fee = settlement.platform_fee.amount_krw if settlement.platform_fee else 0
@@ -50,6 +89,29 @@ class SettlementRepository(SettlementRepositoryPort):
                 db_settlement.paid_at = settlement.paid_at
                 await self.session.flush()
                 await self.session.refresh(db_settlement)
+
+                # Capture new values for audit
+                new_values = {
+                    "total_sessions": settlement.total_sessions,
+                    "total_amount": settlement.total_amount.amount_krw if settlement.total_amount else 0,
+                    "platform_fee": settlement.platform_fee.amount_krw if settlement.platform_fee else 0,
+                    "net_amount": settlement.net_amount.amount_krw if settlement.net_amount else 0,
+                    "is_paid": settlement.is_paid,
+                    "paid_at": settlement.paid_at.isoformat() if settlement.paid_at else None,
+                }
+
+                # Log update if something changed
+                if self.audit_repo and old_values != new_values:
+                    await self.audit_repo.log_change(
+                        entity_type="settlement",
+                        entity_id=db_settlement.id,
+                        action="update",
+                        old_value=old_values,
+                        new_value=new_values,
+                        actor_id=actor_id,
+                        ip_address=ip_address,
+                    )
+
                 return self._to_entity(db_settlement)
             return settlement
 
@@ -121,6 +183,8 @@ class SettlementRepository(SettlementRepositoryPort):
         total_amount: Money,
         platform_fee: Money,
         pg_fee: Money,
+        actor_id: Optional[int] = None,
+        ip_address: Optional[str] = None,
     ) -> Settlement:
         """Create a new settlement record.
 
@@ -145,12 +209,14 @@ class SettlementRepository(SettlementRepositoryPort):
             is_paid=False,
         )
         settlement.calculate_net_amount()
-        return await self.save(settlement)
+        return await self.save(settlement, actor_id, ip_address)
 
     async def mark_as_paid(
         self,
         settlement_id: int,
         paid_at: Optional[datetime] = None,
+        actor_id: Optional[int] = None,
+        ip_address: Optional[str] = None,
     ) -> Settlement:
         """Mark settlement as paid.
 
@@ -168,8 +234,22 @@ class SettlementRepository(SettlementRepositoryPort):
         if not settlement:
             raise ValueError(f"Settlement not found: {settlement_id}")
 
+        old_is_paid = settlement.is_paid
         settlement.mark_as_paid(paid_at)
-        return await self.save(settlement)
+
+        # Log payment status change
+        if self.audit_repo and not old_is_paid:
+            await self.audit_repo.log_change(
+                entity_type="settlement",
+                entity_id=settlement_id,
+                action="mark_paid",
+                old_value={"is_paid": False, "paid_at": None},
+                new_value={"is_paid": True, "paid_at": settlement.paid_at.isoformat() if settlement.paid_at else None},
+                actor_id=actor_id,
+                ip_address=ip_address,
+            )
+
+        return await self.save(settlement, actor_id, ip_address)
 
     async def list_pending_settlements(
         self,

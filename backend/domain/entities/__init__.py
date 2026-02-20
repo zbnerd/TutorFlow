@@ -250,6 +250,9 @@ from domain.entities.attendance import (
     NONE,
 )
 
+# Import badge entities
+from domain.entities.badge import Badge, POPULAR_TUTOR, BEST_TUTOR, RESPONSE_KING, ALL_BADGES, BADGE_MAP
+
 __all__ = [
     "UserRole",
     "BookingStatus",
@@ -275,4 +278,10 @@ __all__ = [
     "FULL_DEDUCTION",
     "ONE_FREE",
     "NONE",
+    "Badge",
+    "POPULAR_TUTOR",
+    "BEST_TUTOR",
+    "RESPONSE_KING",
+    "ALL_BADGES",
+    "BADGE_MAP",
 ]

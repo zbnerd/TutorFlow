@@ -1,7 +1,7 @@
 """Booking API routes."""
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Annotated
 
+from api.v1.routes.dependencies import get_current_user, get_current_student, get_current_tutor, get_repository_factory
 from application.dto.booking import (
     BookingCreateRequest,
     BookingResponse,
@@ -11,21 +11,23 @@ from application.dto.booking import (
     ErrorResponse,
 )
 from application.use_cases.booking import BookingUseCases, BookingValidationError
+from domain.entities import User, UserRole
 from domain.value_objects.schedule import ScheduleSlot, TimeRange
 from datetime import datetime
-from infrastructure.persistence.repositories import BookingRepository
-from infrastructure.persistence.repositories.tutor_repository import TutorRepository
-from infrastructure.database import get_db
+from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from infrastructure.persistence.repository_factory import RepositoryFactory
 
 
 router = APIRouter()
 
 
-def get_booking_use_cases(db: AsyncSession = Depends(get_db)) -> BookingUseCases:
+def get_booking_use_cases(repos: RepositoryFactory) -> BookingUseCases:
     """Get booking use cases with dependencies injected."""
     return BookingUseCases(
-        booking_repo=BookingRepository(db),
-        tutor_repo=TutorRepository(db),
+        booking_repo=repos.booking(),
+        tutor_repo=repos.tutor(),
     )
 
 
@@ -47,8 +49,8 @@ def _parse_schedule_slots(requests: list) -> list[ScheduleSlot]:
 @router.post("", response_model=BookingResponse, status_code=status.HTTP_201_CREATED)
 async def create_booking(
     request: BookingCreateRequest,
-    # student_id: int,  # TODO: Get from JWT auth
-    db: AsyncSession = Depends(get_db),
+    current_user: Annotated[User, Depends(get_current_student)],
+    repos: Annotated[RepositoryFactory, Depends(get_repository_factory)],
 ):
     """
     Create a new booking request.
@@ -61,10 +63,9 @@ async def create_booking(
     - Tutor must be approved
     - No scheduling conflicts with existing bookings
     """
-    # TODO: Get student_id from JWT token
-    student_id = 1  # Placeholder
+    student_id = current_user.id
 
-    booking_use_cases = get_booking_use_cases(db)
+    booking_use_cases = get_booking_use_cases(repos)
 
     try:
         slots = _parse_schedule_slots(request.slots)
@@ -88,24 +89,22 @@ async def create_booking(
 
 @router.get("", response_model=BookingListResponse)
 async def list_bookings(
+    current_user: Annotated[User, Depends(get_current_user)],
+    repos: Annotated[RepositoryFactory, Depends(get_repository_factory)],
     tutor_id: int | None = Query(None, description="Filter by tutor ID"),
     status: str | None = Query(None, description="Filter by status"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
     limit: int = Query(20, ge=1, le=100, description="Pagination limit"),
-    # user_id: int,  # TODO: Get from JWT auth
-    # is_tutor: bool,  # TODO: Get from JWT auth
-    db: AsyncSession = Depends(get_db),
 ):
     """
     List bookings for current user.
 
     Returns bookings filtered by user role (tutor or student) with optional status filter.
     """
-    # TODO: Get user_id and is_tutor from JWT token
-    user_id = 1
-    is_tutor = False
+    user_id = current_user.id
+    is_tutor = current_user.role == UserRole.TUTOR
 
-    booking_use_cases = get_booking_use_cases(db)
+    booking_use_cases = get_booking_use_cases(repos)
 
     bookings = await booking_use_cases.list_bookings(
         user_id=user_id,
@@ -126,14 +125,14 @@ async def list_bookings(
 @router.get("/{booking_id}", response_model=BookingResponse)
 async def get_booking(
     booking_id: int,
-    db: AsyncSession = Depends(get_db),
+    repos: Annotated[RepositoryFactory, Depends(get_repository_factory)],
 ):
     """
     Get booking details by ID.
 
     Returns full booking details including sessions.
     """
-    booking_use_cases = get_booking_use_cases(db)
+    booking_use_cases = get_booking_use_cases(repos)
 
     booking = await booking_use_cases.get_booking(booking_id)
     if not booking:
@@ -151,18 +150,17 @@ async def get_booking(
 @router.patch("/{booking_id}/approve", response_model=BookingResponse)
 async def approve_booking(
     booking_id: int,
-    # tutor_id: int,  # TODO: Get from JWT auth
-    db: AsyncSession = Depends(get_db),
+    current_user: Annotated[User, Depends(get_current_tutor)],
+    repos: Annotated[RepositoryFactory, Depends(get_repository_factory)],
 ):
     """
     Tutor approves a booking request.
 
     Booking status changes from PENDING to APPROVED.
     """
-    # TODO: Get tutor_id from JWT token
-    tutor_id = 1
+    tutor_id = current_user.id
 
-    booking_use_cases = get_booking_use_cases(db)
+    booking_use_cases = get_booking_use_cases(repos)
 
     try:
         booking = await booking_use_cases.approve_booking(booking_id, tutor_id)
@@ -182,8 +180,8 @@ async def approve_booking(
 async def reject_booking(
     booking_id: int,
     request: BookingRejectRequest,
-    # tutor_id: int,  # TODO: Get from JWT auth
-    db: AsyncSession = Depends(get_db),
+    current_user: Annotated[User, Depends(get_current_tutor)],
+    repos: Annotated[RepositoryFactory, Depends(get_repository_factory)],
 ):
     """
     Tutor rejects a booking request.
@@ -191,10 +189,9 @@ async def reject_booking(
     Booking status changes from PENDING to REJECTED.
     A rejection reason can be provided.
     """
-    # TODO: Get tutor_id from JWT token
-    tutor_id = 1
+    tutor_id = current_user.id
 
-    booking_use_cases = get_booking_use_cases(db)
+    booking_use_cases = get_booking_use_cases(repos)
 
     try:
         booking = await booking_use_cases.reject_booking(
@@ -217,9 +214,8 @@ async def reject_booking(
 @router.delete("/{booking_id}", response_model=BookingResponse)
 async def cancel_booking(
     booking_id: int,
-    # user_id: int,  # TODO: Get from JWT auth
-    # is_tutor: bool,  # TODO: Get from JWT auth
-    db: AsyncSession = Depends(get_db),
+    current_user: Annotated[User, Depends(get_current_user)],
+    repos: Annotated[RepositoryFactory, Depends(get_repository_factory)],
 ):
     """
     Cancel a booking.
@@ -227,11 +223,10 @@ async def cancel_booking(
     Both students and tutors can cancel bookings.
     Only PENDING and APPROVED bookings can be cancelled.
     """
-    # TODO: Get user_id and is_tutor from JWT token
-    user_id = 1
-    is_tutor = False
+    user_id = current_user.id
+    is_tutor = current_user.role == UserRole.TUTOR
 
-    booking_use_cases = get_booking_use_cases(db)
+    booking_use_cases = get_booking_use_cases(repos)
 
     try:
         booking = await booking_use_cases.cancel_booking(

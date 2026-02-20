@@ -3,81 +3,34 @@ from datetime import date, datetime
 from typing import Annotated
 
 from application.dto.attendance import (
-    AttendanceUpdateRequest,
-    AttendanceUpdateResponse,
-    AttendanceListResponse,
     AttendanceSessionResponse,
     AttendanceStatusResponse,
     ErrorResponse,
+    AttendanceMarkRequest,
+    AttendanceSessionsListResponse,
 )
-from domain.entities import SessionStatus
+from api.v1.routes.dependencies import get_current_user, get_current_tutor_or_admin, get_repository_factory
+from domain.entities import SessionStatus, User
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from infrastructure.database import get_db
-from infrastructure.persistence.repositories.attendance_repository import AttendanceRepository
+from infrastructure.persistence.repository_factory import RepositoryFactory
 
 
 router = APIRouter()
 
 
-# Request/Response DTOs (inline for now, should move to application/dto/)
-class AttendanceUpdateRequest(BaseModel):
-    """Request to mark attendance."""
-    status: SessionStatus  # ATTENDED or NO_SHOW
-    notes: str | None = None
-
-
-class AttendanceSessionResponse(BaseModel):
-    """Attendance session response."""
-    id: int
-    booking_id: int
-    session_date: datetime
-    session_time: str
-    status: SessionStatus
-    attendance_checked_at: datetime | None = None
-    attendance_checked_by: int | None = None
-    notes: str | None = None
-    student_name: str | None = None
-    student_grade: int | None = None
-
-    class Config:
-        use_enum_values = True
-
-
-class AttendanceListResponse(BaseModel):
-    """Attendance list response."""
-    sessions: list[AttendanceSessionResponse]
-    total: int
-    offset: int
-    limit: int
-
-
-class AttendanceStatusResponse(BaseModel):
-    """Attendance status response."""
-    total: int
-    by_status: dict[str, int]
-    recent_sessions: list[AttendanceSessionResponse]
-
-
-class ErrorResponse(BaseModel):
-    """Error response."""
-    code: str
-    message: str
-
-
-def get_attendance_repository(db: AsyncSession = Depends(get_db)) -> AttendanceRepository:
-    """Get attendance repository with database session."""
-    return AttendanceRepository(db)
+# Alias for backward compatibility
+AttendanceListResponse = AttendanceSessionsListResponse
 
 
 @router.patch("/sessions/{session_id}", response_model=AttendanceSessionResponse)
 async def mark_attendance(
     session_id: int,
-    request: AttendanceUpdateRequest,
-    # user_id: int,  # TODO: Get from JWT auth
-    db: Annotated[AsyncSession, Depends(get_db)],
+    request: AttendanceMarkRequest,
+    repos: Annotated[RepositoryFactory, Depends(get_repository_factory)],
+    current_user: Annotated[User, Depends(get_current_user)],
 ):
     """
     Mark attendance for a session.
@@ -90,10 +43,9 @@ async def mark_attendance(
     - Session must be in SCHEDULED status
     - Status must be ATTENDED or NO_SHOW
     """
-    # TODO: Get user_id from JWT token
-    user_id = 1  # Placeholder
+    user_id = current_user.id
 
-    attendance_repo = get_attendance_repository(db)
+    attendance_repo = repos.attendance()
 
     # Validate status
     if request.status not in [SessionStatus.COMPLETED, SessionStatus.NO_SHOW]:
@@ -156,13 +108,13 @@ async def mark_attendance(
 
 @router.get("/sessions", response_model=AttendanceListResponse)
 async def get_sessions_for_attendance(
-    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+    repos: Annotated[RepositoryFactory, Depends(get_repository_factory)],
     date_from: date | None = Query(None, description="Filter by date from"),
     date_to: date | None = Query(None, description="Filter by date to"),
     status: str | None = Query(None, description="Filter by status"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
     limit: int = Query(20, ge=1, le=100, description="Pagination limit"),
-    # tutor_id: int,  # TODO: Get from JWT auth
 ):
     """
     Get sessions that need attendance check.
@@ -175,10 +127,11 @@ async def get_sessions_for_attendance(
     - date_to: Only sessions on or before this date
     - status: Filter by session status (e.g., "scheduled")
     """
-    # TODO: Get tutor_id from JWT token
-    tutor_id = 1  # Placeholder
+    # For tutors, get their own sessions. For students, get their booking sessions
+    from domain.entities import UserRole
+    tutor_id = current_user.id if current_user.role == UserRole.TUTOR else None
 
-    attendance_repo = get_attendance_repository(db)
+    attendance_repo = repos.attendance()
 
     # Convert status string to enum if provided
     status_filter = None
@@ -232,11 +185,10 @@ async def get_sessions_for_attendance(
 
 @router.get("/status", response_model=AttendanceStatusResponse)
 async def get_attendance_status(
-    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+    repos: Annotated[RepositoryFactory, Depends(get_repository_factory)],
     offset: int = Query(0, ge=0, description="Pagination offset for recent sessions"),
     limit: int = Query(10, ge=1, le=50, description="Pagination limit for recent sessions"),
-    # user_id: int,  # TODO: Get from JWT auth
-    # is_tutor: bool,  # TODO: Get from JWT auth
 ):
     """
     Get attendance status summary for current user.
@@ -246,11 +198,11 @@ async def get_attendance_status(
     - Count by status (scheduled, completed, cancelled, no_show)
     - Recent sessions with attendance info
     """
-    # TODO: Get user_id and is_tutor from JWT token
-    user_id = 1
-    is_tutor = False  # Set based on user role
+    user_id = current_user.id
+    from domain.entities import UserRole
+    is_tutor = current_user.role == UserRole.TUTOR
 
-    attendance_repo = get_attendance_repository(db)
+    attendance_repo = repos.attendance()
 
     status_data = await attendance_repo.get_attendance_status(
         user_id=user_id,

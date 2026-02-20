@@ -1,0 +1,18 @@
+{
+  "active": true,
+  "current_phase": "team-exec",
+  "team_name": "refactor-cleanup",
+  "agent_count": 3,
+  "agent_types": "executor",
+  "task": "코드 전체를 탐색해서 prd, todo에서 빼먹은것이나 잘못구현된거 없는지 살펴보고 리팩토링해. stateful요소, dirty code, anti pattern 전부 리팩토링대상이야.",
+  "fix_loop_count": 0,
+  "max_fix_loops": 3,
+  "linked_ralph": false,
+  "stage_history": "team-plan:2026-02-20T00:00:00Z,team-exec:2026-02-20T00:01:00Z",
+  "_meta": {
+    "mode": "team",
+    "sessionId": null,
+    "updatedAt": "2026-02-20T18:28:02.571Z",
+    "updatedBy": "state_write_tool"
+  }
+}

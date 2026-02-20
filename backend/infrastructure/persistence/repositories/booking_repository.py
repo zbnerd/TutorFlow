@@ -10,30 +10,46 @@ from domain.entities import Booking, BookingSession, BookingStatus, SessionStatu
 from domain.ports import BookingRepositoryPort
 from domain.value_objects.schedule import ScheduleSlot, TimeRange
 from infrastructure.persistence.models import BookingModel, BookingSessionModel
+from infrastructure.persistence.repositories.audit_log_repository import AuditLogRepository
 
 
 class BookingRepository(BookingRepositoryPort):
     """SQLAlchemy implementation of BookingRepositoryPort."""
 
-    def __init__(self, session: AsyncSession):
-        """Initialize repository with database session."""
+    def __init__(self, session: AsyncSession, audit_repo: Optional[AuditLogRepository] = None):
+        """Initialize repository with database session and optional audit repository."""
         self.session = session
+        self.audit_repo = audit_repo
 
-    async def save(self, booking: Booking) -> Booking:
+    async def save(self, booking: Booking, actor_id: Optional[int] = None, ip_address: Optional[str] = None) -> Booking:
         """Save booking to database (create or update)."""
         if booking.id is None:
             # Create new booking
-            db_booking = BookingModel(
-                student_id=booking.student_id,
-                tutor_id=booking.tutor_id,
-                total_sessions=booking.total_sessions,
-                completed_sessions=booking.completed_sessions,
-                status=booking.status,
-                notes=booking.notes,
-            )
+            new_values = {
+                "student_id": booking.student_id,
+                "tutor_id": booking.tutor_id,
+                "total_sessions": booking.total_sessions,
+                "completed_sessions": booking.completed_sessions,
+                "status": booking.status.value if isinstance(booking.status, BookingStatus) else booking.status,
+                "notes": booking.notes,
+            }
+            db_booking = BookingModel(**new_values)
             self.session.add(db_booking)
             await self.session.flush()
             await self.session.refresh(db_booking)
+
+            # Log creation
+            if self.audit_repo:
+                await self.audit_repo.log_change(
+                    entity_type="booking",
+                    entity_id=db_booking.id,
+                    action="create",
+                    old_value=None,
+                    new_value=new_values,
+                    actor_id=actor_id,
+                    ip_address=ip_address,
+                )
+
             return self._to_entity(db_booking)
         else:
             # Update existing booking
@@ -42,11 +58,38 @@ class BookingRepository(BookingRepositoryPort):
             )
             db_booking = result.scalar_one_or_none()
             if db_booking:
+                # Capture old values for audit
+                old_values = {
+                    "status": db_booking.status.value if isinstance(db_booking.status, BookingStatus) else db_booking.status,
+                    "completed_sessions": db_booking.completed_sessions,
+                    "notes": db_booking.notes,
+                }
+
                 db_booking.status = booking.status
                 db_booking.completed_sessions = booking.completed_sessions
                 db_booking.notes = booking.notes
                 await self.session.flush()
                 await self.session.refresh(db_booking)
+
+                # Capture new values for audit
+                new_values = {
+                    "status": booking.status.value if isinstance(booking.status, BookingStatus) else booking.status,
+                    "completed_sessions": booking.completed_sessions,
+                    "notes": booking.notes,
+                }
+
+                # Log update if something changed
+                if self.audit_repo and old_values != new_values:
+                    await self.audit_repo.log_change(
+                        entity_type="booking",
+                        entity_id=db_booking.id,
+                        action="update",
+                        old_value=old_values,
+                        new_value=new_values,
+                        actor_id=actor_id,
+                        ip_address=ip_address,
+                    )
+
                 return self._to_entity(db_booking)
             return booking
 
@@ -139,6 +182,8 @@ class BookingRepository(BookingRepositoryPort):
         self,
         booking_id: int,
         slots: List[ScheduleSlot],
+        actor_id: Optional[int] = None,
+        ip_address: Optional[str] = None,
     ) -> List[BookingSession]:
         """Create booking sessions from schedule slots."""
         db_sessions = []
@@ -154,6 +199,18 @@ class BookingRepository(BookingRepositoryPort):
 
         await self.session.flush()
 
+        # Log session creation
+        if self.audit_repo and db_sessions:
+            await self.audit_repo.log_change(
+                entity_type="booking_session",
+                entity_id=booking_id,
+                action="create_sessions",
+                old_value=None,
+                new_value={"count": len(db_sessions), "booking_id": booking_id},
+                actor_id=actor_id,
+                ip_address=ip_address,
+            )
+
         return [
             BookingSession(
                 id=s.id,
@@ -164,6 +221,41 @@ class BookingRepository(BookingRepositoryPort):
             )
             for s in db_sessions
         ]
+
+    async def update_status(
+        self,
+        booking_id: int,
+        new_status: BookingStatus,
+        actor_id: Optional[int] = None,
+        ip_address: Optional[str] = None,
+    ) -> Optional[Booking]:
+        """Update booking status with audit logging."""
+        result = await self.session.execute(
+            select(BookingModel).where(BookingModel.id == booking_id)
+        )
+        db_booking = result.scalar_one_or_none()
+
+        if not db_booking:
+            return None
+
+        old_status = db_booking.status
+        db_booking.status = new_status
+        await self.session.flush()
+        await self.session.refresh(db_booking)
+
+        # Log status change
+        if self.audit_repo and old_status != new_status:
+            await self.audit_repo.log_change(
+                entity_type="booking",
+                entity_id=booking_id,
+                action="status_change",
+                old_value={"status": old_status.value if isinstance(old_status, BookingStatus) else old_status},
+                new_value={"status": new_status.value if isinstance(new_status, BookingStatus) else new_status},
+                actor_id=actor_id,
+                ip_address=ip_address,
+            )
+
+        return self._to_entity(db_booking)
 
     def _to_entity(self, db_booking: BookingModel) -> Booking:
         """Convert ORM model to domain entity."""

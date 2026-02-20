@@ -8,14 +8,16 @@ from sqlalchemy.orm import selectinload
 
 from domain.entities import BookingSession, Booking, SessionStatus, BookingStatus
 from infrastructure.persistence.models import BookingSessionModel, BookingModel, TutorModel, StudentModel, UserModel
+from infrastructure.persistence.repositories.audit_log_repository import AuditLogRepository
 
 
 class AttendanceRepository:
     """Repository for attendance-related operations."""
 
-    def __init__(self, session: AsyncSession):
-        """Initialize repository with database session."""
+    def __init__(self, session: AsyncSession, audit_repo: Optional[AuditLogRepository] = None):
+        """Initialize repository with database session and optional audit repository."""
         self.session = session
+        self.audit_repo = audit_repo
 
     async def get_session_by_id(self, session_id: int) -> Optional[BookingSession]:
         """Get a booking session by ID."""
@@ -193,6 +195,7 @@ class AttendanceRepository:
         session_id: int,
         status: SessionStatus,
         checked_by: int,
+        ip_address: Optional[str] = None,
     ) -> Optional[BookingSession]:
         """Update session attendance status."""
         result = await self.session.execute(
@@ -211,9 +214,21 @@ class AttendanceRepository:
         await self.session.flush()
         await self.session.refresh(db_session)
 
+        # Log attendance change
+        if self.audit_repo and old_status != status:
+            await self.audit_repo.log_change(
+                entity_type="booking_session",
+                entity_id=session_id,
+                action="attendance_check",
+                old_value={"status": old_status.value if isinstance(old_status, SessionStatus) else old_status},
+                new_value={"status": status.value if isinstance(status, SessionStatus) else status},
+                actor_id=checked_by,
+                ip_address=ip_address,
+            )
+
         # Update booking completed_sessions count if marking as completed
         if status == SessionStatus.COMPLETED and old_status != SessionStatus.COMPLETED:
-            await self._increment_completed_sessions(db_session.booking_id)
+            await self._increment_completed_sessions(db_session.booking_id, checked_by, ip_address)
 
         return self._session_to_entity(db_session)
 
@@ -221,6 +236,8 @@ class AttendanceRepository:
         self,
         session_id: int,
         status: SessionStatus,
+        actor_id: Optional[int] = None,
+        ip_address: Optional[str] = None,
     ) -> Optional[BookingSession]:
         """Update session status (for batch job auto-attendance)."""
         result = await self.session.execute(
@@ -238,13 +255,30 @@ class AttendanceRepository:
         await self.session.flush()
         await self.session.refresh(db_session)
 
+        # Log status change
+        if self.audit_repo and old_status != status:
+            await self.audit_repo.log_change(
+                entity_type="booking_session",
+                entity_id=session_id,
+                action="auto_attendance",
+                old_value={"status": old_status.value if isinstance(old_status, SessionStatus) else old_status},
+                new_value={"status": status.value if isinstance(status, SessionStatus) else status},
+                actor_id=actor_id,  # System user ID for batch jobs
+                ip_address=ip_address,
+            )
+
         # Update booking completed_sessions count if marking as completed
         if status == SessionStatus.COMPLETED and old_status != SessionStatus.COMPLETED:
-            await self._increment_completed_sessions(db_session.booking_id)
+            await self._increment_completed_sessions(db_session.booking_id, actor_id, ip_address)
 
         return self._session_to_entity(db_session)
 
-    async def _increment_completed_sessions(self, booking_id: int) -> None:
+    async def _increment_completed_sessions(
+        self,
+        booking_id: int,
+        actor_id: Optional[int] = None,
+        ip_address: Optional[str] = None,
+    ) -> None:
         """Increment the completed_sessions count for a booking."""
         result = await self.session.execute(
             select(BookingModel).where(BookingModel.id == booking_id)
@@ -252,8 +286,21 @@ class AttendanceRepository:
         db_booking = result.scalar_one_or_none()
 
         if db_booking:
+            old_count = db_booking.completed_sessions
             db_booking.completed_sessions += 1
             await self.session.flush()
+
+            # Log the increment
+            if self.audit_repo:
+                await self.audit_repo.log_change(
+                    entity_type="booking",
+                    entity_id=booking_id,
+                    action="increment_completed_sessions",
+                    old_value={"completed_sessions": old_count},
+                    new_value={"completed_sessions": db_booking.completed_sessions},
+                    actor_id=actor_id,
+                    ip_address=ip_address,
+                )
 
     async def get_attendance_status(
         self,

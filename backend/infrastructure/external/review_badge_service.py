@@ -1,34 +1,35 @@
-"""Review badge calculation service for daily batch job."""
-from typing import Dict, List
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+"""Review badge service - delegates to use case for badge calculation.
 
-from infrastructure.persistence.models import ReviewModel, TutorModel
-from domain.entities import Review
+This service is now a thin wrapper that fetches data from the database
+and delegates badge calculation logic to the application layer.
+"""
+from typing import List
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+
+from infrastructure.persistence.models import TutorModel
+from infrastructure.persistence.repositories.review_repository import ReviewRepository
+from application.use_cases.calculate_badges import CalculateBadgesUseCase
+from config import settings
 
 
 class ReviewBadgeService:
-    """Service for calculating and updating tutor review badges."""
-
-    # Badge thresholds
-    POPULAR_TUTOR_MIN_REVIEWS = 10
-    POPULAR_TUTOR_MIN_RATING = 4.5
-    BEST_TUTOR_MIN_REVIEWS = 30
-    BEST_TUTOR_MIN_RATING = 4.8
-    RESPONSE_KING_REPLY_RATE = 80  # percentage
-
-    # Badge display names (Korean)
-    BADGE_NAMES = {
-        "popular_tutor": "인기 튜터",  # Popular Tutor
-        "best_tutor": "베스트 튜터",  # Best Tutor
-        "response_king": "답변왕",  # Response King
-    }
+    """Service for calculating tutor badges using use case layer."""
 
     def __init__(self, session: AsyncSession):
         """Initialize badge service with database session."""
         self.session = session
+        self.review_repo = ReviewRepository(session)
+        self.badge_use_case = CalculateBadgesUseCase(
+            self.review_repo,
+            popular_tutor_min_reviews=settings.BADGE_POPULAR_TUTOR_MIN_REVIEWS,
+            popular_tutor_min_rating=settings.BADGE_POPULAR_TUTOR_MIN_RATING,
+            best_tutor_min_reviews=settings.BADGE_BEST_TUTOR_MIN_REVIEWS,
+            best_tutor_min_rating=settings.BADGE_BEST_TUTOR_MIN_RATING,
+            reply_king_response_rate=settings.BADGE_REPLY_KING_RESPONSE_RATE,
+        )
 
-    async def calculate_badges_for_tutor(self, tutor_id: int) -> Dict[str, any]:
+    async def calculate_badges_for_tutor(self, tutor_id: int) -> dict:
         """
         Calculate badges for a specific tutor.
 
@@ -38,32 +39,17 @@ class ReviewBadgeService:
         Returns:
             Dict with badges list and statistics
         """
-        # Get review statistics
-        stats = await self._get_tutor_stats(tutor_id)
-
-        # Calculate badges
-        badges = []
-
-        if stats["total_reviews"] >= self.POPULAR_TUTOR_MIN_REVIEWS:
-            if stats["avg_rating"] >= self.POPULAR_TUTOR_MIN_RATING:
-                badges.append(self.BADGE_NAMES["popular_tutor"])
-
-        if stats["total_reviews"] >= self.BEST_TUTOR_MIN_REVIEWS:
-            if stats["avg_rating"] >= self.BEST_TUTOR_MIN_RATING:
-                badges.append(self.BADGE_NAMES["best_tutor"])
-
-        if stats["reply_rate"] >= self.RESPONSE_KING_REPLY_RATE:
-            badges.append(self.BADGE_NAMES["response_king"])
+        result = await self.badge_use_case.calculate_tutor_badges(tutor_id)
 
         return {
             "tutor_id": tutor_id,
-            "badges": badges,
-            "total_reviews": stats["total_reviews"],
-            "avg_rating": stats["avg_rating"],
-            "reply_rate": stats["reply_rate"],
+            "badges": [badge.name for badge in result.badges_earned],
+            "total_reviews": result.stats.total_reviews,
+            "avg_rating": result.stats.avg_rating,
+            "reply_rate": result.stats.reply_rate,
         }
 
-    async def calculate_all_tutor_badges(self) -> List[Dict[str, any]]:
+    async def calculate_all_tutor_badges(self) -> List[dict]:
         """
         Calculate badges for all approved tutors.
 
@@ -80,59 +66,21 @@ class ReviewBadgeService:
         tutor_ids = [row[0] for row in result.fetchall()]
 
         # Calculate badges for each tutor
-        badges_list = []
-        for tutor_id in tutor_ids:
-            badges_info = await self.calculate_badges_for_tutor(tutor_id)
-            badges_list.append(badges_info)
+        results = await self.badge_use_case.calculate_all_tutors_badges(tutor_ids)
 
-        return badges_list
-
-    async def _get_tutor_stats(self, tutor_id: int) -> Dict[str, any]:
-        """
-        Get review statistics for a tutor.
-
-        Args:
-            tutor_id: Tutor ID
-
-        Returns:
-            Dict with total_reviews, avg_rating, reply_count, reply_rate
-        """
-        # Total reviews and average rating
-        result = await self.session.execute(
-            select(
-                func.count(ReviewModel.id).label("total"),
-                func.avg(ReviewModel.overall_rating).label("avg_rating"),
-            ).where(ReviewModel.tutor_id == tutor_id)
-        )
-        stats = result.one()
-        total_reviews = stats.total or 0
-        avg_rating = float(stats.avg_rating or 0)
-
-        # Reply statistics
-        reply_result = await self.session.execute(
-            select(
-                func.count(ReviewModel.id).label("total"),
-                func.sum(
-                    func.case(
-                        (ReviewModel.tutor_reply.isnot(None), 1),
-                        else_=0,
-                    )
-                ).label("replied"),
-            ).where(ReviewModel.tutor_id == tutor_id)
-        )
-        reply_stats = reply_result.one()
-        reply_count = reply_stats.replied or 0
-        reply_rate = (reply_count / reply_stats.total * 100) if reply_stats.total > 0 else 0
-
-        return {
-            "total_reviews": total_reviews,
-            "avg_rating": avg_rating,
-            "reply_count": reply_count,
-            "reply_rate": reply_rate,
-        }
+        return [
+            {
+                "tutor_id": r.tutor_id,
+                "badges": [badge.name for badge in r.badges_earned],
+                "total_reviews": r.stats.total_reviews,
+                "avg_rating": r.stats.avg_rating,
+                "reply_rate": r.stats.reply_rate,
+            }
+            for r in results
+        ]
 
 
-async def run_daily_badge_calculation(session: AsyncSession) -> Dict[str, any]:
+async def run_daily_badge_calculation(session: AsyncSession) -> dict:
     """
     Run daily badge calculation for all tutors.
 

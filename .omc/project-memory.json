@@ -1,0 +1,338 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1771602023873,
+  "projectRoot": "/home/maple/TutorFlow",
+  "techStack": {
+    "languages": [],
+    "frameworks": [],
+    "packageManager": null,
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {},
+  "hotPaths": [
+    {
+      "path": "backend",
+      "accessCount": 30,
+      "lastAccessed": 1771613628615,
+      "type": "directory"
+    },
+    {
+      "path": "PRD.md",
+      "accessCount": 29,
+      "lastAccessed": 1771611812975,
+      "type": "file"
+    },
+    {
+      "path": "backend/api/v1/routes/payments.py",
+      "accessCount": 24,
+      "lastAccessed": 1771613200391,
+      "type": "file"
+    },
+    {
+      "path": "backend/infrastructure/persistence/models.py",
+      "accessCount": 24,
+      "lastAccessed": 1771613732761,
+      "type": "file"
+    },
+    {
+      "path": "backend/domain/ports/__init__.py",
+      "accessCount": 22,
+      "lastAccessed": 1771612993194,
+      "type": "file"
+    },
+    {
+      "path": "backend/domain/entities/__init__.py",
+      "accessCount": 22,
+      "lastAccessed": 1771613130543,
+      "type": "file"
+    },
+    {
+      "path": "backend/api/v1/routes/__init__.py",
+      "accessCount": 21,
+      "lastAccessed": 1771610777319,
+      "type": "file"
+    },
+    {
+      "path": "backend/api/v1/routes/auth.py",
+      "accessCount": 20,
+      "lastAccessed": 1771613663192,
+      "type": "file"
+    },
+    {
+      "path": "backend/api/v1/routes/reviews.py",
+      "accessCount": 18,
+      "lastAccessed": 1771613512447,
+      "type": "file"
+    },
+    {
+      "path": "backend/config.py",
+      "accessCount": 18,
+      "lastAccessed": 1771613706006,
+      "type": "file"
+    },
+    {
+      "path": "backend/application/use_cases/review.py",
+      "accessCount": 18,
+      "lastAccessed": 1771613811644,
+      "type": "file"
+    },
+    {
+      "path": "backend/infrastructure/persistence/repositories.py",
+      "accessCount": 15,
+      "lastAccessed": 1771612189430,
+      "type": "file"
+    },
+    {
+      "path": "backend/infrastructure/persistence/repositories/review_repository.py",
+      "accessCount": 13,
+      "lastAccessed": 1771612950728,
+      "type": "file"
+    },
+    {
+      "path": "backend/application/use_cases/payment.py",
+      "accessCount": 13,
+      "lastAccessed": 1771613694024,
+      "type": "file"
+    },
+    {
+      "path": "backend/domain/value_objects/__init__.py",
+      "accessCount": 10,
+      "lastAccessed": 1771609457266,
+      "type": "file"
+    },
+    {
+      "path": "backend/application/dto/review.py",
+      "accessCount": 9,
+      "lastAccessed": 1771612889091,
+      "type": "file"
+    },
+    {
+      "path": "backend/main.py",
+      "accessCount": 9,
+      "lastAccessed": 1771613743290,
+      "type": "file"
+    },
+    {
+      "path": "backend/infrastructure/database.py",
+      "accessCount": 9,
+      "lastAccessed": 1771613788697,
+      "type": "file"
+    },
+    {
+      "path": "backend/.env.example",
+      "accessCount": 8,
+      "lastAccessed": 1771609610856,
+      "type": "file"
+    },
+    {
+      "path": "backend/application/use_cases/__init__.py",
+      "accessCount": 8,
+      "lastAccessed": 1771612575825,
+      "type": "file"
+    },
+    {
+      "path": "backend/application/dto/auth.py",
+      "accessCount": 8,
+      "lastAccessed": 1771613285675,
+      "type": "file"
+    },
+    {
+      "path": "backend/alembic/versions/20250220_initial_schema.py",
+      "accessCount": 7,
+      "lastAccessed": 1771609278158,
+      "type": "file"
+    },
+    {
+      "path": "backend/infrastructure/persistence/models/user_model.py",
+      "accessCount": 6,
+      "lastAccessed": 1771609386567,
+      "type": "file"
+    },
+    {
+      "path": "backend/application/dto/payment.py",
+      "accessCount": 6,
+      "lastAccessed": 1771610514971,
+      "type": "file"
+    },
+    {
+      "path": "backend/infrastructure/persistence/models/__init__.py",
+      "accessCount": 6,
+      "lastAccessed": 1771610634602,
+      "type": "file"
+    },
+    {
+      "path": "backend/domain/entities/user.py",
+      "accessCount": 6,
+      "lastAccessed": 1771612504672,
+      "type": "file"
+    },
+    {
+      "path": "backend/deps.py",
+      "accessCount": 5,
+      "lastAccessed": 1771605182186,
+      "type": "file"
+    },
+    {
+      "path": "backend/application/use_cases/auth.py",
+      "accessCount": 5,
+      "lastAccessed": 1771605195875,
+      "type": "file"
+    },
+    {
+      "path": "backend/application/dto/__init__.py",
+      "accessCount": 5,
+      "lastAccessed": 1771609556885,
+      "type": "file"
+    },
+    {
+      "path": "backend/requirements.txt",
+      "accessCount": 5,
+      "lastAccessed": 1771610418560,
+      "type": "file"
+    },
+    {
+      "path": "Todo.md",
+      "accessCount": 5,
+      "lastAccessed": 1771611810995,
+      "type": "file"
+    },
+    {
+      "path": "market_research.md",
+      "accessCount": 4,
+      "lastAccessed": 1771603942549,
+      "type": "file"
+    },
+    {
+      "path": "backend/infrastructure/persistence/models/booking_model.py",
+      "accessCount": 4,
+      "lastAccessed": 1771610426207,
+      "type": "file"
+    },
+    {
+      "path": "backend/infrastructure/external/auth/token_service.py",
+      "accessCount": 4,
+      "lastAccessed": 1771612498313,
+      "type": "file"
+    },
+    {
+      "path": "README.md",
+      "accessCount": 3,
+      "lastAccessed": 1771603934321,
+      "type": "file"
+    },
+    {
+      "path": "backend/infrastructure/external/auth/kakao_oauth.py",
+      "accessCount": 3,
+      "lastAccessed": 1771604502830,
+      "type": "file"
+    },
+    {
+      "path": "CLAUDE.md",
+      "accessCount": 3,
+      "lastAccessed": 1771605066798,
+      "type": "file"
+    },
+    {
+      "path": "backend/infrastructure/external/kakao_alimtalk.py",
+      "accessCount": 3,
+      "lastAccessed": 1771609280912,
+      "type": "file"
+    },
+    {
+      "path": "",
+      "accessCount": 3,
+      "lastAccessed": 1771609394435,
+      "type": "directory"
+    },
+    {
+      "path": "backend/api/v1/routes/webhooks.py",
+      "accessCount": 3,
+      "lastAccessed": 1771613448910,
+      "type": "file"
+    },
+    {
+      "path": "backend/infrastructure/external/kakao_oauth.py",
+      "accessCount": 2,
+      "lastAccessed": 1771604342212,
+      "type": "file"
+    },
+    {
+      "path": "backend/infrastructure/external/toss_payments.py",
+      "accessCount": 2,
+      "lastAccessed": 1771605188077,
+      "type": "file"
+    },
+    {
+      "path": "backend/infrastructure/external/payments/toss_payments_adapter.py",
+      "accessCount": 2,
+      "lastAccessed": 1771605271332,
+      "type": "file"
+    },
+    {
+      "path": "backend/infrastructure/external/__init__.py",
+      "accessCount": 1,
+      "lastAccessed": 1771604283420,
+      "type": "file"
+    },
+    {
+      "path": "backend/infrastructure/external/auth/__init__.py",
+      "accessCount": 1,
+      "lastAccessed": 1771604335006,
+      "type": "file"
+    },
+    {
+      "path": "backend/alembic.ini",
+      "accessCount": 1,
+      "lastAccessed": 1771604408386,
+      "type": "file"
+    },
+    {
+      "path": "backend/alembic/env.py",
+      "accessCount": 1,
+      "lastAccessed": 1771604421388,
+      "type": "file"
+    },
+    {
+      "path": "backend/alembic/script.py.mako",
+      "accessCount": 1,
+      "lastAccessed": 1771604432030,
+      "type": "file"
+    },
+    {
+      "path": "backend/infrastructure/persistence/__init__.py",
+      "accessCount": 1,
+      "lastAccessed": 1771604487799,
+      "type": "file"
+    },
+    {
+      "path": "backend/infrastructure/external/payments/__init__.py",
+      "accessCount": 1,
+      "lastAccessed": 1771605271562,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

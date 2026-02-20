@@ -17,7 +17,6 @@ class ReviewUseCases:
     async def create_review(
         self,
         booking_id: int,
-        tutor_id: int,
         student_id: int,
         overall_rating: int,
         kindness_rating: int,
@@ -38,6 +37,8 @@ class ReviewUseCases:
         5. Can only update within 7 days
 
         Args:
+            booking_id: Booking ID to review
+            student_id: Student creating the review
             All review fields
 
         Returns:
@@ -46,8 +47,8 @@ class ReviewUseCases:
         Raises:
             ValueError: If validation fails
         """
-        # Check if user can create review
-        can_create, reason = await self.review_repo.can_create_review(booking_id, student_id)
+        # Check if user can create review (also validates booking exists and gets tutor_id)
+        can_create, reason, tutor_id = await self.review_repo.can_create_review(booking_id, student_id)
         if not can_create:
             raise ValueError(reason)
 

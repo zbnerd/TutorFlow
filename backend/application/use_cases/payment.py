@@ -13,7 +13,6 @@ from application.dto.payment import (
     RefundEstimateResponse,
     PaymentStatusResponse,
 )
-from config import settings
 from domain.entities import Booking, Payment, PaymentStatus, BookingStatus, Money
 from domain.ports import PaymentPort, PaymentRepositoryPort, BookingRepositoryPort
 
@@ -25,6 +24,7 @@ class PaymentUseCases:
     payment_gateway: PaymentPort
     payment_repo: PaymentRepositoryPort
     booking_repo: BookingRepositoryPort
+    fee_rate: float = 0.05  # Default 5% platform fee
 
     async def prepare_payment(
         self,
@@ -104,7 +104,7 @@ class PaymentUseCases:
             raise ValueError(f"Payment not successful: {payment_data['toss_status']}")
 
         # Calculate fees
-        fee_rate = settings.TOSS_PAYMENTS_FEE_RATE if hasattr(settings, 'TOSS_PAYMENTS_FEE_RATE') else 0.05
+        fee_rate = self.fee_rate
         fee_amount = int(request.amount * fee_rate)
         net_amount = request.amount - fee_amount
 

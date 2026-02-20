@@ -1,6 +1,7 @@
 """Settlement API routes for tutor payment settlements."""
 from typing import Annotated, Optional
 
+from api.v1.routes.dependencies import get_current_user, get_current_tutor, get_current_admin, get_repository_factory
 from application.dto.settlement import (
     SettlementListResponse,
     SettlementResponse,
@@ -8,19 +9,21 @@ from application.dto.settlement import (
     MarkPaidRequest,
     MarkPaidResponse,
 )
+from domain.entities import User
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from infrastructure.database import get_db
-from infrastructure.persistence.repositories import SettlementRepository
+from infrastructure.persistence.repository_factory import RepositoryFactory
 
 router = APIRouter()
 
 
 @router.get("", response_model=SettlementListResponse)
 async def get_settlements(
-    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_tutor)],
+    repos: Annotated[RepositoryFactory, Depends(get_repository_factory)],
     year_month: Optional[str] = Query(None, description="Year-month filter (e.g., 2024-01)"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
     limit: int = Query(20, ge=1, le=100, description="Pagination limit"),
@@ -35,6 +38,7 @@ async def get_settlements(
         offset: Pagination offset
         limit: Pagination limit (max 100)
         db: Database session
+        current_user: Authenticated tutor user
 
     Returns:
         List of settlements
@@ -43,10 +47,9 @@ async def get_settlements(
         HTTPException 401: If not authenticated
         HTTPException 403: If not a tutor
     """
-    # TODO: Get tutor_id from JWT token and verify tutor role
-    tutor_id = 1  # Placeholder - should come from authenticated user
+    tutor_id = current_user.id
 
-    settlement_repo = SettlementRepository(db)
+    settlement_repo = repos.settlement()
 
     try:
         settlements = await settlement_repo.get_monthly_settlements(
@@ -90,7 +93,8 @@ async def get_settlements(
 @router.get("/{year_month}", response_model=SettlementDetailResponse)
 async def get_settlement_by_month(
     year_month: str,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_tutor)],
+    repos: Annotated[RepositoryFactory, Depends(get_repository_factory)],
 ) -> SettlementDetailResponse:
     """Get specific month settlement details.
 
@@ -99,6 +103,7 @@ async def get_settlement_by_month(
     Args:
         year_month: Year-month string (e.g., 2024-01)
         db: Database session
+        current_user: Authenticated tutor user
 
     Returns:
         Settlement details with breakdown
@@ -108,10 +113,9 @@ async def get_settlement_by_month(
         HTTPException 403: If not a tutor
         HTTPException 404: If settlement not found
     """
-    # TODO: Get tutor_id from JWT token and verify tutor role
-    tutor_id = 1  # Placeholder - should come from authenticated user
+    tutor_id = current_user.id
 
-    settlement_repo = SettlementRepository(db)
+    settlement_repo = repos.settlement()
 
     try:
         settlement = await settlement_repo.find_by_tutor_and_month(
@@ -174,7 +178,8 @@ async def get_settlement_by_month(
 async def mark_settlement_as_paid(
     settlement_id: int,
     request: MarkPaidRequest,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    current_admin: Annotated[User, Depends(get_current_admin)],
+    repos: Annotated[RepositoryFactory, Depends(get_repository_factory)],
 ) -> MarkPaidResponse:
     """Mark settlement as paid (admin only).
 
@@ -184,6 +189,7 @@ async def mark_settlement_as_paid(
         settlement_id: Settlement ID
         request: Mark paid request with payment details
         db: Database session
+        current_admin: Authenticated admin user
 
     Returns:
         Updated settlement details
@@ -193,10 +199,7 @@ async def mark_settlement_as_paid(
         HTTPException 403: If not an admin
         HTTPException 404: If settlement not found
     """
-    # TODO: Verify admin role from JWT token
-    # admin_user = get_current_admin_user()
-
-    settlement_repo = SettlementRepository(db)
+    settlement_repo = repos.settlement()
 
     try:
         settlement = await settlement_repo.mark_as_paid(
@@ -231,7 +234,8 @@ async def mark_settlement_as_paid(
 
 @router.get("/admin/pending", response_model=SettlementListResponse)
 async def get_pending_settlements(
-    db: Annotated[AsyncSession, Depends(get_db)],
+    current_admin: Annotated[User, Depends(get_current_admin)],
+    repos: Annotated[RepositoryFactory, Depends(get_repository_factory)],
     offset: int = Query(0, ge=0, description="Pagination offset"),
     limit: int = Query(20, ge=1, le=100, description="Pagination limit"),
 ) -> SettlementListResponse:
@@ -243,6 +247,7 @@ async def get_pending_settlements(
         offset: Pagination offset
         limit: Pagination limit (max 100)
         db: Database session
+        current_admin: Authenticated admin user
 
     Returns:
         List of pending settlements
@@ -251,9 +256,7 @@ async def get_pending_settlements(
         HTTPException 401: If not authenticated
         HTTPException 403: If not an admin
     """
-    # TODO: Verify admin role from JWT token
-
-    settlement_repo = SettlementRepository(db)
+    settlement_repo = repos.settlement()
 
     try:
         settlements = await settlement_repo.list_pending_settlements(

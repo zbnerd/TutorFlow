@@ -35,10 +35,6 @@ class UserModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
     # Relationships
     tutor: Mapped[Optional["TutorModel"]] = relationship("TutorModel", back_populates="user", uselist=False)
     student: Mapped[Optional["StudentModel"]] = relationship("StudentModel", back_populates="user", uselist=False)

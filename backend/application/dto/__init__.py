@@ -85,3 +85,30 @@ class PaymentResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# Import attendance DTOs
+from application.dto.attendance import (
+    AttendanceMarkRequest,
+    AttendanceResponse,
+    AttendanceListResponse,
+    NoShowStatsResponse,
+    BatchAttendanceRequest,
+    SessionAttendanceItem,
+)
+
+__all__ = [
+    "UserResponse",
+    "TutorCreate",
+    "TutorResponse",
+    "StudentCreate",
+    "BookingCreate",
+    "BookingResponse",
+    "PaymentResponse",
+    "AttendanceMarkRequest",
+    "AttendanceResponse",
+    "AttendanceListResponse",
+    "NoShowStatsResponse",
+    "BatchAttendanceRequest",
+    "SessionAttendanceItem",
+]

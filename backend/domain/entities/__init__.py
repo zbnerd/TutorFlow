@@ -249,3 +249,40 @@ class AuditLog:
     actor_id: int | None = None
     ip_address: str | None = None
     created_at: datetime | None = None
+
+
+# Import attendance entities
+from domain.entities.attendance import (
+    Attendance,
+    AttendanceStatus,
+    NoShowPolicyType,
+    FULL_DEDUCTION,
+    ONE_FREE,
+    NONE,
+)
+
+__all__ = [
+    "UserRole",
+    "BookingStatus",
+    "PaymentStatus",
+    "SessionStatus",
+    "NoShowPolicy",
+    "Money",
+    "User",
+    "Tutor",
+    "Student",
+    "AvailableSlot",
+    "Booking",
+    "BookingSession",
+    "Payment",
+    "Settlement",
+    "Review",
+    "ReviewReport",
+    "AuditLog",
+    "Attendance",
+    "AttendanceStatus",
+    "NoShowPolicyType",
+    "FULL_DEDUCTION",
+    "ONE_FREE",
+    "NONE",
+]

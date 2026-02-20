@@ -286,3 +286,188 @@ class ReviewReportRepository:
             processed_at=db_report.processed_at,
             created_at=db_report.created_at,
         )
+
+
+class PaymentRepository(PaymentRepositoryPort):
+    """SQLAlchemy implementation of PaymentRepositoryPort."""
+
+    def __init__(self, session: AsyncSession):
+        """Initialize repository with database session."""
+        self.session = session
+
+    async def save(self, payment: Payment) -> Payment:
+        """Save payment to database (create or update)."""
+        if payment.id is None:
+            # Create new payment
+            db_payment = PaymentModel(
+                booking_id=payment.booking_id,
+                amount=payment.amount.amount_krw if payment.amount else 0,
+                fee_rate=payment.fee_rate,
+                fee_amount=payment.fee_amount.amount_krw if payment.fee_amount else 0,
+                net_amount=payment.net_amount.amount_krw if payment.net_amount else 0,
+                pg_payment_key=payment.pg_payment_key,
+                pg_provider=payment.pg_provider,
+                status=payment.status,
+                paid_at=payment.paid_at,
+                refunded_at=payment.refunded_at,
+                refund_reason=payment.refund_reason,
+            )
+            self.session.add(db_payment)
+            await self.session.flush()
+            await self.session.refresh(db_payment)
+            return self._to_entity(db_payment)
+        else:
+            # Update existing payment
+            result = await self.session.execute(
+                select(PaymentModel).where(PaymentModel.id == payment.id)
+            )
+            db_payment = result.scalar_one_or_none()
+            if db_payment:
+                db_payment.status = payment.status
+                db_payment.paid_at = payment.paid_at
+                db_payment.refunded_at = payment.refunded_at
+                db_payment.refund_reason = payment.refund_reason
+                await self.session.flush()
+                await self.session.refresh(db_payment)
+                return self._to_entity(db_payment)
+            return payment
+
+    async def find_by_id(self, payment_id: int) -> Payment | None:
+        """Find payment by ID."""
+        result = await self.session.execute(
+            select(PaymentModel).where(PaymentModel.id == payment_id)
+        )
+        db_payment = result.scalar_one_or_none()
+        return self._to_entity(db_payment) if db_payment else None
+
+    async def find_by_booking_id(self, booking_id: int) -> Payment | None:
+        """Find payment by booking ID."""
+        result = await self.session.execute(
+            select(PaymentModel).where(PaymentModel.booking_id == booking_id)
+        )
+        db_payment = result.scalar_one_or_none()
+        return self._to_entity(db_payment) if db_payment else None
+
+    async def find_by_pg_key(self, pg_payment_key: str) -> Payment | None:
+        """Find payment by payment gateway key."""
+        result = await self.session.execute(
+            select(PaymentModel).where(PaymentModel.pg_payment_key == pg_payment_key)
+        )
+        db_payment = result.scalar_one_or_none()
+        return self._to_entity(db_payment) if db_payment else None
+
+    def _to_entity(self, db_payment: PaymentModel) -> Payment:
+        """Convert ORM model to domain entity."""
+        from domain.entities import Money
+
+        return Payment(
+            id=db_payment.id,
+            booking_id=db_payment.booking_id,
+            amount=Money(db_payment.amount) if db_payment.amount else None,
+            fee_rate=float(db_payment.fee_rate) if db_payment.fee_rate else 0.05,
+            fee_amount=Money(db_payment.fee_amount) if db_payment.fee_amount else None,
+            net_amount=Money(db_payment.net_amount) if db_payment.net_amount else None,
+            pg_payment_key=db_payment.pg_payment_key,
+            pg_provider=db_payment.pg_provider,
+            status=db_payment.status,
+            paid_at=db_payment.paid_at,
+            refunded_at=db_payment.refunded_at,
+            refund_reason=db_payment.refund_reason,
+            created_at=db_payment.created_at,
+            updated_at=db_payment.updated_at,
+        )
+
+
+class BookingRepository(BookingRepositoryPort):
+    """SQLAlchemy implementation of BookingRepositoryPort."""
+
+    def __init__(self, session: AsyncSession):
+        """Initialize repository with database session."""
+        self.session = session
+
+    async def save(self, booking: Booking) -> Booking:
+        """Save booking to database (create or update)."""
+        if booking.id is None:
+            # Create new booking
+            db_booking = BookingModel(
+                student_id=booking.student_id,
+                tutor_id=booking.tutor_id,
+                total_sessions=booking.total_sessions,
+                completed_sessions=booking.completed_sessions,
+                status=booking.status,
+                notes=booking.notes,
+            )
+            self.session.add(db_booking)
+            await self.session.flush()
+            await self.session.refresh(db_booking)
+            return self._to_entity(db_booking)
+        else:
+            # Update existing booking
+            result = await self.session.execute(
+                select(BookingModel).where(BookingModel.id == booking.id)
+            )
+            db_booking = result.scalar_one_or_none()
+            if db_booking:
+                db_booking.completed_sessions = booking.completed_sessions
+                db_booking.status = booking.status
+                db_booking.notes = booking.notes
+                await self.session.flush()
+                await self.session.refresh(db_booking)
+                return self._to_entity(db_booking)
+            return booking
+
+    async def find_by_id(self, booking_id: int) -> Booking | None:
+        """Find booking by ID."""
+        result = await self.session.execute(
+            select(BookingModel).where(BookingModel.id == booking_id)
+        )
+        db_booking = result.scalar_one_or_none()
+        return self._to_entity(db_booking) if db_booking else None
+
+    async def list_by_tutor(
+        self,
+        tutor_id: int,
+        status: str | None = None,
+    ) -> list[Booking]:
+        """List bookings by tutor."""
+        query = select(BookingModel).where(BookingModel.tutor_id == tutor_id)
+
+        if status is not None:
+            query = query.where(BookingModel.status == status)
+
+        query = query.order_by(BookingModel.created_at.desc())
+
+        result = await self.session.execute(query)
+        db_bookings = result.scalars().all()
+        return [self._to_entity(b) for b in db_bookings]
+
+    async def list_by_student(
+        self,
+        student_id: int,
+        status: str | None = None,
+    ) -> list[Booking]:
+        """List bookings by student."""
+        query = select(BookingModel).where(BookingModel.student_id == student_id)
+
+        if status is not None:
+            query = query.where(BookingModel.status == status)
+
+        query = query.order_by(BookingModel.created_at.desc())
+
+        result = await self.session.execute(query)
+        db_bookings = result.scalars().all()
+        return [self._to_entity(b) for b in db_bookings]
+
+    def _to_entity(self, db_booking: BookingModel) -> Booking:
+        """Convert ORM model to domain entity."""
+        return Booking(
+            id=db_booking.id,
+            student_id=db_booking.student_id,
+            tutor_id=db_booking.tutor_id,
+            total_sessions=db_booking.total_sessions,
+            completed_sessions=db_booking.completed_sessions,
+            status=db_booking.status,
+            notes=db_booking.notes,
+            created_at=db_booking.created_at,
+            updated_at=db_booking.updated_at,
+        )

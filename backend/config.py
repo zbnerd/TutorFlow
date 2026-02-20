@@ -53,10 +53,24 @@ class Settings(BaseSettings):
     TOSS_PAYMENTS_API_KEY: str = ""
     TOSS_PAYMENTS_SECRET_KEY: str = ""
     TOSS_PAYMENTS_API_URL: str = "https://api.tosspayments.com/v1"
+    TOSS_PAYMENTS_FEE_RATE: float = 0.05  # 5% platform fee
 
     # Kakao Alimtalk
     KAKAO_ALIMTalk_API_KEY: str = ""
     KAKAO_ALIMTalk_SENDER: str = "TutorFlow"
+
+    # Alimtalk Template Codes
+    KAKAO_ALIMTalk_TEMPLATE_SESSION_REMINDER: str = ""  # 24-hour before session reminder
+    KAKAO_ALIMTalk_TEMPLATE_ATTENDANCE_CHECK: str = ""  # Attendance check reminder for tutors
+
+    # Batch Job Schedule (Cron format)
+    BATCH_AUTO_ATTENDANCE_SCHEDULE: str = "59 23 * * *"  # Daily at 23:59
+    BATCH_ATTENDANCE_REMINDER_SCHEDULE: str = "0 12 * * *"  # Daily at 12:00
+    BATCH_SESSION_REMINDER_SCHEDULE: str = "0 9 * * *"  # Daily at 09:00 (24h before sessions)
+
+    # Batch Job Settings
+    BATCH_JOBS_ENABLED: bool = True
+    BATCH_TIMEZONE: str = "Asia/Seoul"
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod

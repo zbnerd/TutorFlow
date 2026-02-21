@@ -1,17 +1,18 @@
 """API dependencies for authentication and database access."""
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from application.use_cases.payment import PaymentUseCases
 from config import settings
 from domain.entities import UserRole, User
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from infrastructure.external.payments import TossPaymentsAdapter
 from infrastructure.database import get_db
 from infrastructure.external.auth.token_service import TokenService
 from infrastructure.persistence.repository_factory import RepositoryFactory
 from infrastructure.persistence.repositories.user_repository import UserRepository
+from jose import JWTError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 # Authentication dependencies
@@ -210,3 +211,27 @@ async def get_repository_factory(
         RepositoryFactory instance
     """
     return RepositoryFactory(db)
+
+
+# Payment use cases dependency
+async def get_payment_use_cases(
+    repos: Annotated[RepositoryFactory, Depends(get_repository_factory)],
+) -> PaymentUseCases:
+    """
+    Get payment use cases with required dependencies.
+
+    Args:
+        repos: Repository factory
+
+    Returns:
+        PaymentUseCases instance
+    """
+    fee_rate = getattr(settings, 'TOSS_PAYMENTS_FEE_RATE', 0.05)
+    payment_gateway = TossPaymentsAdapter()
+
+    return PaymentUseCases(
+        payment_gateway=payment_gateway,
+        payment_repo=repos.payment(),
+        booking_repo=repos.booking(),
+        fee_rate=fee_rate,
+    )

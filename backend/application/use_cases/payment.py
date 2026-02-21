@@ -188,7 +188,9 @@ class PaymentUseCases:
             payment_id=str(payment.id),
             payment_key=payment_key,
             cancel_reason=request.cancel_reason,
-            refund_amount=cancel_data.get("amount", payment.amount.amount_krw if payment.amount else 0),
+            refund_amount=cancel_data.get(
+                "amount", payment.amount.amount_krw if payment.amount else 0
+            ),
             cancelled_at=datetime.utcnow(),
             status=payment.status,
         )

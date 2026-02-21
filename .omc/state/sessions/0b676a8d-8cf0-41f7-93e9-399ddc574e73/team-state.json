@@ -1,0 +1,8 @@
+{
+  "active": true,
+  "started_at": "2026-02-20T19:13:21.373Z",
+  "original_prompt": "/oh-my-claudecode:team 3:executor \"전체 리팩토링 진행해. 워커들끼리 서로 토론해가며 리팩토링 짙행해 수시로 토론해야해.\"",
+  "session_id": "0b676a8d-8cf0-41f7-93e9-399ddc574e73",
+  "reinforcement_count": 0,
+  "last_checked_at": "2026-02-20T19:13:21.376Z"
+}

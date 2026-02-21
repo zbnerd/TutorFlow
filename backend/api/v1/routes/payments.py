@@ -2,6 +2,7 @@
 from typing import Annotated
 
 from api.v1.routes.dependencies import get_current_user, get_repository_factory
+from application.dto import ErrorResponse
 from application.dto.payment import (
     CancelPaymentRequest,
     CancelPaymentResponse,
@@ -60,7 +61,10 @@ async def prepare_payment(
     if not booking:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Booking not found",
+            detail=ErrorResponse(
+                code="BOOKING_NOT_FOUND",
+                message="Booking not found",
+            ).model_dump(),
         )
 
     user_id = current_user.id
@@ -82,12 +86,18 @@ async def prepare_payment(
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
+            detail=ErrorResponse(
+                code="INVALID_REQUEST",
+                message=str(e),
+            ).model_dump(),
         ) from e
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Payment preparation failed: {str(e)}",
+            detail=ErrorResponse(
+                code="PAYMENT_PREPARATION_FAILED",
+                message=f"Payment preparation failed: {str(e)}",
+            ).model_dump(),
         ) from e
 
 
@@ -125,12 +135,18 @@ async def confirm_payment(
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
+            detail=ErrorResponse(
+                code="INVALID_REQUEST",
+                message=str(e),
+            ).model_dump(),
         ) from e
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Payment confirmation failed: {str(e)}",
+            detail=ErrorResponse(
+                code="PAYMENT_CONFIRMATION_FAILED",
+                message=f"Payment confirmation failed: {str(e)}",
+            ).model_dump(),
         ) from e
 
 
@@ -169,16 +185,25 @@ async def cancel_payment(
         if "not found" in str(e):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=str(e),
+                detail=ErrorResponse(
+                code="INVALID_REQUEST",
+                message=str(e),
+            ).model_dump(),
             ) from e
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
+            detail=ErrorResponse(
+                code="INVALID_REQUEST",
+                message=str(e),
+            ).model_dump(),
         ) from e
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Payment cancellation failed: {str(e)}",
+            detail=ErrorResponse(
+                code="PAYMENT_CANCELLATION_FAILED",
+                message=f"Payment cancellation failed: {str(e)}",
+            ).model_dump(),
         ) from e
 
 
@@ -214,16 +239,25 @@ async def get_payment_status(
         if "not found" in str(e):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=str(e),
+                detail=ErrorResponse(
+                code="INVALID_REQUEST",
+                message=str(e),
+            ).model_dump(),
             ) from e
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
+            detail=ErrorResponse(
+                code="INVALID_REQUEST",
+                message=str(e),
+            ).model_dump(),
         ) from e
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get payment status: {str(e)}",
+            detail=ErrorResponse(
+                code="PAYMENT_STATUS_FAILED",
+                message=f"Failed to get payment status: {str(e)}",
+            ).model_dump(),
         ) from e
 
 
@@ -260,16 +294,25 @@ async def get_refund_estimate(
         if "not found" in str(e):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=str(e),
+                detail=ErrorResponse(
+                code="INVALID_REQUEST",
+                message=str(e),
+            ).model_dump(),
             ) from e
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
+            detail=ErrorResponse(
+                code="INVALID_REQUEST",
+                message=str(e),
+            ).model_dump(),
         ) from e
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to calculate refund estimate: {str(e)}",
+            detail=ErrorResponse(
+                code="REFUND_ESTIMATE_FAILED",
+                message=f"Failed to calculate refund estimate: {str(e)}",
+            ).model_dump(),
         ) from e
 
 
@@ -305,7 +348,10 @@ async def toss_webhook(
     if not signature:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing Toss-Signature header",
+            detail=ErrorResponse(
+                code="MISSING_SIGNATURE",
+                message="Missing Toss-Signature header",
+            ).model_dump(),
         )
 
     if not payment_gateway.verify_webhook_signature(
@@ -314,7 +360,10 @@ async def toss_webhook(
     ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid signature",
+            detail=ErrorResponse(
+                code="INVALID_SIGNATURE",
+                message="Invalid signature",
+            ).model_dump(),
         )
 
     # Parse webhook data
@@ -323,7 +372,10 @@ async def toss_webhook(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid JSON payload",
+            detail=ErrorResponse(
+                code="INVALID_JSON",
+                message="Invalid JSON payload",
+            ).model_dump(),
         ) from e
 
     payment_use_cases = PaymentUseCases(
@@ -339,5 +391,8 @@ async def toss_webhook(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Webhook processing failed: {str(e)}",
+            detail=ErrorResponse(
+                code="WEBHOOK_FAILED",
+                message=f"Webhook processing failed: {str(e)}",
+            ).model_dump(),
         ) from e

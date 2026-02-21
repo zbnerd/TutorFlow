@@ -173,7 +173,9 @@ class CalculateRefundUseCase:
         )
 
         # Policy description
-        policy_description = self._get_policy_description(no_show_policy, billable_no_show_count, no_show_count)
+        policy_description = self._get_policy_description(
+            no_show_policy, billable_no_show_count, no_show_count
+        )
 
         return RefundBreakdown(
             total_paid=total_paid,

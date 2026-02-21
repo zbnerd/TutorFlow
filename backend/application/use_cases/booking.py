@@ -63,7 +63,10 @@ class BookingUseCases:
         for slot in slots:
             if not slot.is_future():
                 raise BookingValidationError(
-                    f"Slot {slot.date} {slot.time_range.start_time} is not at least 24 hours in the future",
+                    (
+                        f"Slot {slot.date} {slot.time_range.start_time} "
+                        f"is not at least 24 hours in the future"
+                    ),
                     "SLOT_TOO_SOON",
                 )
 
@@ -189,10 +192,14 @@ class BookingUseCases:
         # Check authorization
         if is_tutor:
             if booking.tutor_id != user_id:
-                raise BookingValidationError("Not authorized to cancel this booking", "NOT_AUTHORIZED")
+                raise BookingValidationError(
+                    "Not authorized to cancel this booking", "NOT_AUTHORIZED"
+                )
         else:
             if booking.student_id != user_id:
-                raise BookingValidationError("Not authorized to cancel this booking", "NOT_AUTHORIZED")
+                raise BookingValidationError(
+                    "Not authorized to cancel this booking", "NOT_AUTHORIZED"
+                )
 
         # Can only cancel pending or approved bookings
         if booking.status not in [BookingStatus.PENDING, BookingStatus.APPROVED]:

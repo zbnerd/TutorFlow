@@ -48,7 +48,9 @@ class ReviewUseCases:
             ValueError: If validation fails
         """
         # Check if user can create review (also validates booking exists and gets tutor_id)
-        can_create, reason, tutor_id = await self.review_repo.can_create_review(booking_id, student_id)
+        can_create, reason, tutor_id = await self.review_repo.can_create_review(
+            booking_id, student_id
+        )
         if not can_create:
             raise ValueError(reason)
 

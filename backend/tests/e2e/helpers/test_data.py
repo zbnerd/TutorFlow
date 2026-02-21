@@ -266,36 +266,59 @@ class TestDataFactory:
 
     async def cleanup_user_data(self, user_id: int):
         """Clean up all data associated with a user."""
-        # Delete reviews
+        from sqlalchemy import delete, text, select
+
+        # Delete reviews by student
         await self.session.execute(
-            f"DELETE FROM reviews WHERE student_id = {user_id}"
+            delete(ReviewModel).where(ReviewModel.student_id == user_id)
         )
+
         # Delete payments
         await self.session.execute(
-            f"DELETE FROM payments WHERE student_id = {user_id} OR tutor_id = {user_id}"
+            delete(PaymentModel).where(
+                (PaymentModel.student_id == user_id) | (PaymentModel.tutor_id == user_id)
+            )
         )
+
         # Delete booking sessions
-        await self.session.execute(
-            f"DELETE FROM booking_sessions WHERE booking_id IN "
-            f"(SELECT id FROM bookings WHERE student_id = {user_id} OR tutor_id = {user_id})"
+        # First get booking IDs
+        booking_ids_result = await self.session.execute(
+            select(BookingModel.id).where(
+                (BookingModel.student_id == user_id) | (BookingModel.tutor_id == user_id)
+            )
         )
+        booking_ids = [row[0] for row in booking_ids_result.fetchall()]
+
+        if booking_ids:
+            await self.session.execute(
+                delete(BookingSessionModel).where(
+                    BookingSessionModel.booking_id.in_(booking_ids)
+                )
+            )
+
         # Delete bookings
         await self.session.execute(
-            f"DELETE FROM bookings WHERE student_id = {user_id} OR tutor_id = {user_id}"
+            delete(BookingModel).where(
+                (BookingModel.student_id == user_id) | (BookingModel.tutor_id == user_id)
+            )
         )
+
         # Delete available slots
         await self.session.execute(
-            f"DELETE FROM available_slots WHERE tutor_id = {user_id}"
+            delete(AvailableSlotModel).where(AvailableSlotModel.tutor_id == user_id)
         )
+
         # Delete tutor/student profiles
         await self.session.execute(
-            f"DELETE FROM tutor_profiles WHERE user_id = {user_id}"
+            delete(TutorProfileModel).where(TutorProfileModel.user_id == user_id)
         )
         await self.session.execute(
-            f"DELETE FROM student_profiles WHERE user_id = {user_id}"
+            delete(StudentProfileModel).where(StudentProfileModel.user_id == user_id)
         )
+
         # Delete user
         await self.session.execute(
-            f"DELETE FROM users WHERE id = {user_id}"
+            delete(UserModel).where(UserModel.id == user_id)
         )
+
         await self.session.commit()

@@ -87,6 +87,13 @@ class PaymentResponse(BaseModel):
         from_attributes = True
 
 
+class ErrorResponse(BaseModel):
+    """Standard error response across all endpoints."""
+    code: str = Field(..., description="Error code for programmatic handling")
+    message: str = Field(..., description="Human-readable error message")
+    details: Optional[dict] = Field(None, description="Additional error details")
+
+
 # Import attendance DTOs
 from application.dto.attendance import (
     AttendanceMarkRequest,
@@ -105,6 +112,7 @@ __all__ = [
     "BookingCreate",
     "BookingResponse",
     "PaymentResponse",
+    "ErrorResponse",
     "AttendanceMarkRequest",
     "AttendanceResponse",
     "AttendanceListResponse",

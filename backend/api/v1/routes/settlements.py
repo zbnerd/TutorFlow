@@ -1,7 +1,12 @@
 """Settlement API routes for tutor payment settlements."""
 from typing import Annotated, Optional
 
-from api.v1.routes.dependencies import get_current_user, get_current_tutor, get_current_admin, get_repository_factory
+from api.v1.routes.dependencies import (
+    get_current_user,
+    get_current_tutor,
+    get_current_admin,
+    get_repository_factory,
+)
 from application.dto.settlement import (
     SettlementListResponse,
     SettlementResponse,
@@ -144,22 +149,30 @@ async def get_settlement_by_month(
             breakdown_items=[
                 {
                     "label": "총 수업료",
-                    "value": f"{settlement.total_amount.amount_krw if settlement.total_amount else 0:,}원",
+                    "value": (
+                        f"{settlement.total_amount.amount_krw if settlement.total_amount else 0:,}원"
+                    ),
                     "description": f"{settlement.total_sessions}회 수업",
                 },
                 {
                     "label": "플랫폼 수수료",
-                    "value": f"-{settlement.platform_fee.amount_krw if settlement.platform_fee else 0:,}원",
+                    "value": (
+                        f"-{settlement.platform_fee.amount_krw if settlement.platform_fee else 0:,}원"
+                    ),
                     "description": "5%",
                 },
                 {
                     "label": "PG 수수료",
-                    "value": f"-{settlement.pg_fee.amount_krw if settlement.pg_fee else 0:,}원",
+                    "value": (
+                        f"-{settlement.pg_fee.amount_krw if settlement.pg_fee else 0:,}원"
+                    ),
                     "description": "3%",
                 },
                 {
                     "label": "실 지급액",
-                    "value": f"{settlement.net_amount.amount_krw if settlement.net_amount else 0:,}원",
+                    "value": (
+                        f"{settlement.net_amount.amount_krw if settlement.net_amount else 0:,}원"
+                    ),
                     "description": "정산 완료 후 영업일 3-5일 내 지급",
                     "is_total": True,
                 },

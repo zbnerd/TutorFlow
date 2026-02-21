@@ -1,15 +1,20 @@
 """Booking API routes."""
 from typing import Annotated
 
-from api.v1.routes.dependencies import get_current_user, get_current_student, get_current_tutor, get_repository_factory
+from api.v1.routes.dependencies import (
+    get_current_user,
+    get_current_student,
+    get_current_tutor,
+    get_repository_factory,
+)
 from application.dto.booking import (
     BookingCreateRequest,
     BookingResponse,
     BookingListResponse,
     BookingApproveRequest,
     BookingRejectRequest,
-    ErrorResponse,
 )
+from application.dto import ErrorResponse
 from application.use_cases.booking import BookingUseCases, BookingValidationError
 from domain.entities import User, UserRole
 from domain.value_objects.schedule import ScheduleSlot, TimeRange

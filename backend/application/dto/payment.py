@@ -68,7 +68,9 @@ class ConfirmPaymentResponse(BaseModel):
 class CancelPaymentRequest(BaseModel):
     """Request to cancel payment."""
 
-    cancel_reason: str = Field(..., min_length=1, max_length=200, description="Reason for cancellation")
+    cancel_reason: str = Field(
+        ..., min_length=1, max_length=200, description="Reason for cancellation"
+    )
 
 
 class CancelPaymentResponse(BaseModel):
@@ -171,7 +173,15 @@ class TossWebhookRequest(BaseModel):
     @classmethod
     def validate_status(cls, v: str) -> str:
         """Validate payment status."""
-        allowed_statuses = {"READY", "IN_PROGRESS", "WAITING_FOR_DEPOSIT", "DONE", "CANCELED", "FAILED", "EXPIRED"}
+        allowed_statuses = {
+            "READY",
+            "IN_PROGRESS",
+            "WAITING_FOR_DEPOSIT",
+            "DONE",
+            "CANCELED",
+            "FAILED",
+            "EXPIRED",
+        }
         if v not in allowed_statuses:
             raise ValueError(f"Invalid status: {v}")
         return v

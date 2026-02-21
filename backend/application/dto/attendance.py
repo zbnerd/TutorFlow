@@ -9,8 +9,12 @@ from domain.entities import SessionStatus
 
 class AttendanceMarkRequest(BaseModel):
     """Request to mark attendance for a session."""
-    status: AttendanceStatus = Field(..., description="Attendance status (ATTENDED, NO_SHOW, CANCELLED)")
-    notes: Optional[str] = Field(None, max_length=500, description="Optional notes about the attendance")
+    status: AttendanceStatus = Field(
+        ..., description="Attendance status (ATTENDED, NO_SHOW, CANCELLED)"
+    )
+    notes: Optional[str] = Field(
+        None, max_length=500, description="Optional notes about the attendance"
+    )
 
     @field_validator("notes")
     @classmethod
@@ -64,13 +68,6 @@ class SessionAttendanceItem(BaseModel):
     session_id: int = Field(..., description="Booking session ID")
     status: AttendanceStatus = Field(..., description="Attendance status")
     notes: Optional[str] = Field(None, max_length=500, description="Optional notes")
-
-
-class ErrorResponse(BaseModel):
-    """Error response."""
-    code: str
-    message: str
-    details: Optional[dict] = None
 
 
 class AttendanceSessionResponse(BaseModel):

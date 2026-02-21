@@ -5,11 +5,15 @@ from typing import Annotated
 from application.dto.attendance import (
     AttendanceSessionResponse,
     AttendanceStatusResponse,
-    ErrorResponse,
     AttendanceMarkRequest,
     AttendanceSessionsListResponse,
 )
-from api.v1.routes.dependencies import get_current_user, get_current_tutor_or_admin, get_repository_factory
+from application.dto import ErrorResponse
+from api.v1.routes.dependencies import (
+    get_current_user,
+    get_current_tutor_or_admin,
+    get_repository_factory,
+)
 from domain.entities import SessionStatus, User
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession

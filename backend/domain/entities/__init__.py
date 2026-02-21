@@ -251,7 +251,14 @@ from domain.entities.attendance import (
 )
 
 # Import badge entities
-from domain.entities.badge import Badge, POPULAR_TUTOR, BEST_TUTOR, RESPONSE_KING, ALL_BADGES, BADGE_MAP
+from domain.entities.badge import (
+    Badge,
+    POPULAR_TUTOR,
+    BEST_TUTOR,
+    RESPONSE_KING,
+    ALL_BADGES,
+    BADGE_MAP,
+)
 
 __all__ = [
     "UserRole",

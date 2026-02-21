@@ -5,6 +5,7 @@ import base64
 import json
 from typing import Annotated
 
+from api.v1.routes.dependencies import get_payment_use_cases
 from application.dto.payment import TossWebhookRequest
 from application.use_cases.payment import PaymentUseCases
 from config import settings
@@ -12,7 +13,6 @@ from fastapi import APIRouter, Depends, Header, Request, HTTPException, status
 from pydantic import ValidationError
 
 router = APIRouter()
-payment_use_cases = PaymentUseCases()
 
 
 def verify_toss_signature(body: bytes, signature: str) -> bool:
@@ -45,7 +45,8 @@ def verify_toss_signature(body: bytes, signature: str) -> bool:
 @router.post("/toss", status_code=status.HTTP_200_OK)
 async def toss_webhook(
     request: Request,
-    toss_signature: Annotated[str, Header(alias="Toss-Signature")] = None,
+    payment_use_cases: Annotated[PaymentUseCases, Depends(get_payment_use_cases)],
+    toss_signature: Annotated[str | None, Header(alias="Toss-Signature")] = None,
 ) -> dict:
     """Handle Toss Payments webhooks.
 
@@ -61,6 +62,7 @@ async def toss_webhook(
     Args:
         request: FastAPI request object
         toss_signature: Toss-Signature header for verification
+        payment_use_cases: Payment use cases dependency
 
     Returns:
         Confirmation response

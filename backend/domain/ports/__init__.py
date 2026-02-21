@@ -1,9 +1,19 @@
 """Port interfaces for external dependencies (Protocol definitions)."""
 
 from typing import Protocol, runtime_checkable, List, Optional
-from datetime import datetime
+from datetime import datetime, date
 
-from domain.entities import User, Tutor, Student, Booking, BookingSession, Payment, Review, Settlement, Money
+from domain.entities import (
+    User,
+    Tutor,
+    Student,
+    Booking,
+    BookingSession,
+    Payment,
+    Review,
+    Settlement,
+    Money,
+)
 from domain.value_objects.schedule import ScheduleSlot
 from domain.ports.audit_port import AuditPort
 from domain.ports.available_slot_port import AvailableSlotRepositoryPort
@@ -102,6 +112,27 @@ class SettlementRepositoryPort(Protocol):
         limit: int = 20,
     ) -> List[Settlement]:
         """List all pending settlements (not yet paid)."""
+
+    async def get_tutor_revenue_for_month(
+        self,
+        month_start: date,
+        month_end: date,
+    ) -> dict[int, dict]:
+        """Calculate revenue for each tutor from completed sessions in a month.
+
+        Args:
+            month_start: First day of the month
+            month_end: Last day of the month
+
+        Returns:
+            Dictionary mapping tutor_id to revenue data:
+            {
+                tutor_id: {
+                    "total_amount": int,  # Total amount in KRW
+                    "total_sessions": int,  # Number of completed sessions
+                }
+            }
+        """
 
 
 # Keep existing ports...

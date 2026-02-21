@@ -194,7 +194,9 @@ class AttendanceUseCases:
 
         # Check authorization: must be tutor or student of this booking
         if booking.tutor_id != requesting_user_id and booking.student_id != requesting_user_id:
-            raise AttendanceValidationError("Not authorized to view these records", "NOT_AUTHORIZED")
+            raise AttendanceValidationError(
+                "Not authorized to view these records", "NOT_AUTHORIZED"
+            )
 
         sessions = await self.booking_repo.list_sessions(booking_id)
         return sessions

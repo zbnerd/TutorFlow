@@ -194,7 +194,11 @@ class TossPaymentsAdapter(PaymentPort):
             "amount": data.get("totalAmount", 0),
             "method": data.get("method", ""),  # 카드, 간편결제, 가상계좌 등
             "approved_at": data.get("approvedAt"),
-            "canceled_at": data.get("canceledAt", {}).get("canceledAt") if data.get("canceledAt") else None,
+            "canceled_at": (
+                data.get("canceledAt", {}).get("canceledAt")
+                if data.get("canceledAt")
+                else None
+            ),
             "card_info": data.get("card", {}),
             "virtual_account": data.get("virtualAccount", {}),
             "receipt_url": data.get("receipt", {}).get("url"),

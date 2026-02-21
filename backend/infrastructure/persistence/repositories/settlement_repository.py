@@ -1,13 +1,18 @@
 """Settlement repository implementation."""
-from datetime import datetime
+from datetime import datetime, date
 from typing import List, Optional
 
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func as sql_func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from domain.entities import Settlement, Money
+from domain.entities import Settlement, Money, SessionStatus, BookingStatus
 from domain.ports import SettlementRepositoryPort
-from infrastructure.persistence.models import SettlementModel
+from infrastructure.persistence.models import (
+    SettlementModel,
+    BookingSessionModel,
+    BookingModel,
+    TutorModel,
+)
 from infrastructure.persistence.repositories.audit_log_repository import AuditLogRepository
 
 
@@ -271,6 +276,68 @@ class SettlementRepository(SettlementRepositoryPort):
         result = await self.session.execute(query)
         db_settlements = result.scalars().all()
         return [self._to_entity(s) for s in db_settlements]
+
+    async def get_tutor_revenue_for_month(
+        self,
+        month_start: date,
+        month_end: date,
+    ) -> dict[int, dict]:
+        """Calculate revenue for each tutor from completed sessions in a month.
+
+        Args:
+            month_start: First day of the month
+            month_end: Last day of the month
+
+        Returns:
+            Dictionary mapping tutor_id to revenue data:
+            {
+                tutor_id: {
+                    "total_amount": int,  # Total amount in KRW
+                    "total_sessions": int,  # Number of completed sessions
+                }
+            }
+        """
+        # Query completed sessions within the date range
+        result = await self.session.execute(
+            select(
+                TutorModel.id,
+                TutorModel.hourly_rate,
+                sql_func.count(BookingSessionModel.id).label("session_count"),
+            )
+            .join(BookingModel, TutorModel.id == BookingModel.tutor_id)
+            .join(BookingSessionModel, BookingModel.id == BookingSessionModel.booking_id)
+            .where(
+                and_(
+                    BookingSessionModel.session_date >= month_start,
+                    BookingSessionModel.session_date <= month_end,
+                    BookingSessionModel.status == SessionStatus.COMPLETED,
+                    BookingModel.status.in_(
+                        [
+                            BookingStatus.APPROVED,
+                            BookingStatus.IN_PROGRESS,
+                            BookingStatus.COMPLETED,
+                        ]
+                    ),
+                )
+            )
+            .group_by(TutorModel.id, TutorModel.hourly_rate)
+        )
+
+        tutor_revenue = {}
+        for row in result:
+            tutor_id = row[0]
+            hourly_rate = row[1]
+            session_count = row[2]
+
+            # Calculate total amount (hourly_rate * session_count)
+            total_amount = (hourly_rate or 0) * session_count
+
+            tutor_revenue[tutor_id] = {
+                "total_amount": total_amount,
+                "total_sessions": session_count,
+            }
+
+        return tutor_revenue
 
     def _to_entity(self, db_settlement: SettlementModel) -> Settlement:
         """Convert ORM model to domain entity."""

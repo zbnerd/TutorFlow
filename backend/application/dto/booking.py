@@ -38,7 +38,9 @@ class ScheduleSlotRequest(BaseModel):
 class BookingCreateRequest(BaseModel):
     """Booking creation request."""
     tutor_id: int = Field(..., description="Tutor ID")
-    slots: List[ScheduleSlotRequest] = Field(..., min_items=1, description="Requested schedule slots")
+    slots: List[ScheduleSlotRequest] = Field(
+        ..., min_items=1, description="Requested schedule slots"
+    )
     notes: Optional[str] = Field(None, max_length=1000, description="Optional notes from student")
 
 
@@ -74,10 +76,3 @@ class BookingApproveRequest(BaseModel):
 class BookingRejectRequest(BaseModel):
     """Booking reject request."""
     reason: Optional[str] = Field(None, max_length=500, description="Rejection reason")
-
-
-class ErrorResponse(BaseModel):
-    """Error response."""
-    code: str
-    message: str
-    details: Optional[dict] = None
